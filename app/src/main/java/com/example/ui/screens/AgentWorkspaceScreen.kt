@@ -30,6 +30,9 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -54,6 +57,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.domain.agent.ApprovalGate
 import com.example.domain.model.ChatMessage
 import com.example.ui.components.ToolExecutionCard
 import com.example.ui.theme.OceanAqua
@@ -77,6 +81,7 @@ fun AgentWorkspaceScreen(
     val messages by viewModel.messages.collectAsStateWithLifecycle()
     val isRunning by viewModel.isAgentRunning.collectAsStateWithLifecycle()
     val currentThought by viewModel.currentThought.collectAsStateWithLifecycle()
+    val pendingApproval by viewModel.agentEngine.approvalGate.pending.collectAsStateWithLifecycle()
 
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
@@ -159,7 +164,16 @@ fun AgentWorkspaceScreen(
             }
         }
 
-        // Bottom Input Dock
+            // Approval gate modal — when a tool needs user consent
+            if (pendingApproval != null) {
+                ApprovalDialog(
+                    pending = pendingApproval,
+                    onApprove = { viewModel.agentEngine.approvalGate.approve() },
+                    onDeny = { viewModel.agentEngine.approvalGate.deny() }
+                )
+            }
+
+            // Bottom Input Dock
         Surface(
             color = OceanDark800,
             tonalElevation = 6.dp,
@@ -379,6 +393,65 @@ fun AssistantMessageItem(message: ChatMessage) {
             }
         }
     }
+}
+
+@Composable
+fun ApprovalDialog(
+    pending: ApprovalGate.Pending,
+    onApprove: () -> Unit,
+    onDeny: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDeny,
+        title = {
+            Text(
+                text = "Approve tool call?",
+                color = OceanIceWhite,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                Text(
+                    text = "${pending.toolName} ${pending.reason}",
+                    color = OceanIceWhite,
+                    fontSize = 13.sp
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(OceanDark900, RoundedCornerShape(8.dp))
+                        .padding(10.dp)
+                ) {
+                    Text(
+                        text = pending.argumentsJson.take(800),
+                        color = OceanIceSky,
+                        fontSize = 11.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onApprove,
+                colors = ButtonDefaults.buttonColors(containerColor = OceanSuccess.copy(alpha = 0.3f))
+            ) {
+                Text("Approve", color = OceanIceWhite, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            Button(
+                onClick = onDeny,
+                colors = ButtonDefaults.buttonColors(containerColor = OceanError.copy(alpha = 0.3f))
+            ) {
+                Text("Deny", color = OceanIceWhite, fontWeight = FontWeight.Bold)
+            }
+        },
+        containerColor = OceanDark800
+    )
 }
 
 @Composable

@@ -60,5 +60,30 @@ class ExampleRobolectricTest {
 
         assertTrue(diff.any { it.type == DiffLineType.ADDED })
         assertTrue(diff.any { it.type == DiffLineType.REMOVED })
+        assertTrue(diff.any { it.type == DiffLineType.HEADER && it.content.contains("@@") })
+    }
+
+    @Test
+    fun `test PatchEngine applyPatch roundtrip`() {
+        val oldCode = "fun a() = 1\nfun b() = 2\nfun c() = 3\n"
+        val newCode = "fun a() = 1\nfun b() = 22\nfun c() = 3\nfun d() = 4\n"
+        val patch = PatchEngine.formatPatchString(PatchEngine.computeDiff(oldCode, newCode, "X.kt"))
+        val applied = PatchEngine.applyPatch(oldCode, patch)
+        assertTrue(applied is com.example.domain.tools.PatchEngine.ApplyResult.Success)
+        assertEquals(newCode, (applied as com.example.domain.tools.PatchEngine.ApplyResult.Success).content)
+    }
+
+    @Test
+    fun `test ToolCallParser JSON block`() {
+        val text = """
+            Some context
+            ```json
+            {"tool": "read_file", "arguments": {"path": "foo.kt"}}
+            ```
+            More text
+        """.trimIndent()
+        val parsed = ToolCallParser.parse(text)
+        assertNotNull(parsed.toolCall)
+        assertEquals("read_file", parsed.toolCall?.name)
     }
 }

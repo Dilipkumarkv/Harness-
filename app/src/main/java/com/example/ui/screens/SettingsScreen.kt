@@ -77,6 +77,9 @@ fun SettingsScreen(
 
     var localEndpoint by remember(settings) { mutableStateOf(settings.localEndpointUrl) }
     var customKey by remember(settings) { mutableStateOf(settings.customApiKey) }
+    var customEndpoint by remember(settings) { mutableStateOf(settings.customEndpointUrl) }
+    var modelName by remember(settings) { mutableStateOf(settings.modelName) }
+    var gitPath by remember(settings) { mutableStateOf(settings.gitPath) }
 
     LazyColumn(
         modifier = modifier
@@ -123,20 +126,10 @@ fun SettingsScreen(
                         }
                     )
 
-                    // Option 2: Firebase AI Logic
-                    ProviderOptionItem(
-                        title = "Firebase AI Logic (Gemini 3.8 Flash)",
-                        description = "Cloud Gemini API. Notice: Requires Firebase setup.",
-                        selected = settings.providerType == ProviderType.FIREBASE_AI_LOGIC,
-                        onClick = {
-                            viewModel.updateSettings(settings.copy(providerType = ProviderType.FIREBASE_AI_LOGIC))
-                        }
-                    )
-
-                    // Option 3: Custom BYOK
+                    // Option 2: Custom BYOK
                     ProviderOptionItem(
                         title = "Custom BYOK Cloud Endpoint",
-                        description = "Use your own Anthropic Claude or OpenAI compatible API key.",
+                        description = "Use your own OpenAI-compatible API (OpenAI, OpenRouter, Groq, Together, Ollama, LocalAI…).",
                         selected = settings.providerType == ProviderType.BYOK_CUSTOM,
                         onClick = {
                             viewModel.updateSettings(settings.copy(providerType = ProviderType.BYOK_CUSTOM))
@@ -246,7 +239,45 @@ fun SettingsScreen(
                                 customKey = it
                                 viewModel.updateSettings(settings.copy(customApiKey = it))
                             },
-                            label = { Text("API Key (Stored locally in Encrypted SharedPreferences)") },
+                            label = { Text("API Key (Stored locally in app-private SharedPreferences, not encrypted)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = NeonEmerald,
+                                unfocusedBorderColor = SlateDark600,
+                                focusedTextColor = SlateWhite,
+                                unfocusedTextColor = SlateWhite
+                            )
+                        )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        OutlinedTextField(
+                            value = customEndpoint,
+                            onValueChange = {
+                                customEndpoint = it
+                                viewModel.updateSettings(settings.copy(customEndpointUrl = it))
+                            },
+                            label = { Text("Custom Endpoint URL (OpenAI-compatible) e.g. https://api.openai.com/v1 or http://10.0.2.2:11434/v1") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = NeonEmerald,
+                                unfocusedBorderColor = SlateDark600,
+                                focusedTextColor = SlateWhite,
+                                unfocusedTextColor = SlateWhite
+                            )
+                        )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        OutlinedTextField(
+                            value = modelName,
+                            onValueChange = {
+                                modelName = it
+                                viewModel.updateSettings(settings.copy(modelName = it))
+                            },
+                            label = { Text("Model Name (e.g. gpt-4o-mini, llama3.1:8b, qwen2.5-coder:7b)") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             colors = OutlinedTextFieldDefaults.colors(
@@ -257,6 +288,61 @@ fun SettingsScreen(
                             )
                         )
                     }
+                }
+            }
+        }
+
+        // Git binary path
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = SlateDark800),
+                border = androidx.compose.foundation.BorderStroke(1.dp, SlateDark600),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = null,
+                            tint = CyberSky,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "GIT BINARY PATH",
+                            color = SlateWhite,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            letterSpacing = 1.sp
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    OutlinedTextField(
+                        value = gitPath,
+                        onValueChange = {
+                            gitPath = it
+                            viewModel.updateSettings(settings.copy(gitPath = it))
+                        },
+                        label = { Text("Git executable (default: git)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = NeonEmerald,
+                            unfocusedBorderColor = SlateDark600,
+                            focusedTextColor = SlateWhite,
+                            unfocusedTextColor = SlateWhite
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "On Android, 'git' is not bundled. Install Termux and `pkg install git`, then set the path (e.g. /data/data/com.termux/files/usr/bin/git).",
+                        color = SlateMuted,
+                        fontSize = 10.sp
+                    )
                 }
             }
         }
@@ -289,7 +375,7 @@ fun SettingsScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Run internal self-tests verifying virtual filesystem, toolchain sandbox, ReAct/XML parser, and patch engine.",
+                        text = "Run internal self-tests verifying real filesystem, toolchain sandbox, ReAct/XML parser, and patch engine.",
                         color = SlateLight,
                         fontSize = 12.sp
                     )

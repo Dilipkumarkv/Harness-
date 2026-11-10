@@ -111,8 +111,7 @@ fun HarnessApp(
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
                                     text = when (settings.providerType) {
-                                        ProviderType.LOCAL_TOOL_LLM -> "LOCAL AGENT"
-                                        ProviderType.FIREBASE_AI_LOGIC -> "FIREBASE"
+                                        ProviderType.LOCAL_TOOL_LLM -> "LOCAL"
                                         ProviderType.BYOK_CUSTOM -> "BYOK"
                                     },
                                     color = OceanIceWhite,

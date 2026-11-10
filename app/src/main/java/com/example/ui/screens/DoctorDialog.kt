@@ -103,7 +103,7 @@ fun DoctorDialog(
                     .padding(vertical = 4.dp)
             ) {
                 Text(
-                    text = "Self-test verifying virtual toolchain, parsers, and sandbox health:",
+                    text = "Self-test verifying real toolchain, parsers, and sandbox health:",
                     color = SlateLight,
                     fontSize = 12.sp,
                     modifier = Modifier.padding(bottom = 12.dp)

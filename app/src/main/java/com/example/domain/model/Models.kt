@@ -8,7 +8,6 @@ enum class ToolCallStatus {
 
 enum class ProviderType {
     LOCAL_TOOL_LLM,
-    FIREBASE_AI_LOGIC,
     BYOK_CUSTOM
 }
 
@@ -89,6 +88,9 @@ data class HarnessSettings(
     val localEndpointUrl: String = "http://localhost:11434/v1",
     val customApiKey: String = "",
     val customEndpointUrl: String = "https://api.openai.com/v1",
+    val modelName: String = "gpt-4o-mini",
     val maxAutonomousIterations: Int = 6,
-    val autoApproveTools: Boolean = true
+    val autoApproveTools: Boolean = true,
+    /** Full path or bare name of the git binary to use. Default "git". */
+    val gitPath: String = "git"
 )
