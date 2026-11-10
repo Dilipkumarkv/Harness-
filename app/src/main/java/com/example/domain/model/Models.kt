@@ -85,7 +85,6 @@ data class DoctorTestResult(
 data class HarnessSettings(
     val providerType: ProviderType = ProviderType.LOCAL_TOOL_LLM,
     val localProtocol: LocalToolProtocol = LocalToolProtocol.XML_TAGS,
-    val localEndpointUrl: String = "http://localhost:11434/v1",
     val customApiKey: String = "",
     val customEndpointUrl: String = "https://api.openai.com/v1",
     val modelName: String = "gpt-4o-mini",

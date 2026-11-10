@@ -14,8 +14,6 @@ import java.util.concurrent.TimeUnit
 /**
  * Real HTTP client for any OpenAI-compatible `/chat/completions` endpoint.
  *
- * Works unchanged against OpenAI, OpenRouter, Groq, Together, Ollama
- * (`http://localhost:11434/v1`), llama.cpp server, LM Studio and LocalAI.
  * Every failure is returned as [Reply.Failure] with the status code and a slice of the response
  * body, so the UI can show what actually happened instead of guessing.
  */

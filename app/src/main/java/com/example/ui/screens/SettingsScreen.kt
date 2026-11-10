@@ -75,7 +75,6 @@ fun SettingsScreen(
 ) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
 
-    var localEndpoint by remember(settings) { mutableStateOf(settings.localEndpointUrl) }
     var customKey by remember(settings) { mutableStateOf(settings.customApiKey) }
     var customEndpoint by remember(settings) { mutableStateOf(settings.customEndpointUrl) }
     var modelName by remember(settings) { mutableStateOf(settings.modelName) }
@@ -116,20 +115,20 @@ fun SettingsScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // Option 1: Local Tool Calling LLM
+                    // Option 1: Keyword router (no model)
                     ProviderOptionItem(
-                        title = "Local Tool LLM (Recommended)",
-                        description = "On-device autonomous agent loop with ReAct/XML tool-calling and local Ollama/Termux endpoint support.",
+                        title = "Local Keyword Router",
+                        description = "No model, no network. Matches keywords to run a real tool. Cannot author code.",
                         selected = settings.providerType == ProviderType.LOCAL_TOOL_LLM,
                         onClick = {
                             viewModel.updateSettings(settings.copy(providerType = ProviderType.LOCAL_TOOL_LLM))
                         }
                     )
 
-                    // Option 2: Custom BYOK
+                    // Option 2: Custom endpoint with a real model
                     ProviderOptionItem(
-                        title = "Custom BYOK Cloud Endpoint",
-                        description = "Use your own OpenAI-compatible API (OpenAI, OpenRouter, Groq, Together, Ollama, LocalAI…).",
+                        title = "Custom Endpoint (real model)",
+                        description = "Send your prompt to an OpenAI-compatible /chat/completions endpoint and let the model drive the tools.",
                         selected = settings.providerType == ProviderType.BYOK_CUSTOM,
                         onClick = {
                             viewModel.updateSettings(settings.copy(providerType = ProviderType.BYOK_CUSTOM))
@@ -139,7 +138,7 @@ fun SettingsScreen(
             }
         }
 
-        // Local Tool Calling Configuration (shown if Local LLM is selected)
+        // Keyword router: no model involved.
         if (settings.providerType == ProviderType.LOCAL_TOOL_LLM) {
             item {
                 Card(
@@ -158,7 +157,7 @@ fun SettingsScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "LOCAL TOOL-CALLING PROTOCOL",
+                                text = "KEYWORD ROUTER",
                                 color = SlateWhite,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp,
@@ -168,36 +167,27 @@ fun SettingsScreen(
 
                         Spacer(modifier = Modifier.height(10.dp))
 
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            ProtocolChip(
-                                label = "XML Tags (<tool_call>)",
-                                selected = settings.localProtocol == LocalToolProtocol.XML_TAGS,
-                                onClick = { viewModel.updateSettings(settings.copy(localProtocol = LocalToolProtocol.XML_TAGS)) }
-                            )
-                            ProtocolChip(
-                                label = "ReAct Format",
-                                selected = settings.localProtocol == LocalToolProtocol.REACT_TEXT,
-                                onClick = { viewModel.updateSettings(settings.copy(localProtocol = LocalToolProtocol.REACT_TEXT)) }
-                            )
-                        }
+                        Text(
+                            text = "No model runs on this device and no network request is made. " +
+                                "Your message is matched against keywords to pick a real tool:\n\n" +
+                                "  build / compile  \u2192 gradle assembleDebug\n" +
+                                "  git / diff       \u2192 git status, git diff\n" +
+                                "  doctor           \u2192 health probes\n" +
+                                "  search / find    \u2192 search_code\n" +
+                                "  list / files     \u2192 list_directory\n" +
+                                "  anything else    \u2192 reads the file you name, then says it cannot author code",
+                            color = SlateLight,
+                            fontSize = 11.sp,
+                            fontFamily = FontFamily.Monospace,
+                            lineHeight = 17.sp
+                        )
 
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
 
-                        OutlinedTextField(
-                            value = localEndpoint,
-                            onValueChange = {
-                                localEndpoint = it
-                                viewModel.updateSettings(settings.copy(localEndpointUrl = it))
-                            },
-                            label = { Text("Local Model Endpoint (Ollama / Termux)") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = NeonEmerald,
-                                unfocusedBorderColor = SlateDark600,
-                                focusedTextColor = SlateWhite,
-                                unfocusedTextColor = SlateWhite
-                            )
+                        Text(
+                            text = "To have the agent write or edit code, switch to the custom endpoint above and supply a model.",
+                            color = SlateMuted,
+                            fontSize = 10.sp
                         )
                     }
                 }
@@ -239,7 +229,7 @@ fun SettingsScreen(
                                 customKey = it
                                 viewModel.updateSettings(settings.copy(customApiKey = it))
                             },
-                            label = { Text("API Key (Stored locally in app-private SharedPreferences, not encrypted)") },
+                            label = { Text("API Key (saved in this app's private settings)") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             colors = OutlinedTextFieldDefaults.colors(
@@ -277,7 +267,7 @@ fun SettingsScreen(
                                 modelName = it
                                 viewModel.updateSettings(settings.copy(modelName = it))
                             },
-                            label = { Text("Model Name (e.g. gpt-4o-mini, llama3.1:8b, qwen2.5-coder:7b)") },
+                            label = { Text("Model Name (e.g. gpt-4o-mini, qwen2.5-coder:7b)") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             colors = OutlinedTextFieldDefaults.colors(
@@ -287,6 +277,44 @@ fun SettingsScreen(
                                 unfocusedTextColor = SlateWhite
                             )
                         )
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        Text(
+                            text = "TOOL-CALL FORMAT",
+                            color = SlateWhite,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp,
+                            letterSpacing = 1.sp
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Text(
+                            text = "How the model is asked to emit tool calls. Pick whichever your model follows best.",
+                            color = SlateMuted,
+                            fontSize = 10.sp
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            ProtocolChip(
+                                label = "XML",
+                                selected = settings.localProtocol == LocalToolProtocol.XML_TAGS,
+                                onClick = { viewModel.updateSettings(settings.copy(localProtocol = LocalToolProtocol.XML_TAGS)) }
+                            )
+                            ProtocolChip(
+                                label = "ReAct",
+                                selected = settings.localProtocol == LocalToolProtocol.REACT_TEXT,
+                                onClick = { viewModel.updateSettings(settings.copy(localProtocol = LocalToolProtocol.REACT_TEXT)) }
+                            )
+                            ProtocolChip(
+                                label = "JSON",
+                                selected = settings.localProtocol == LocalToolProtocol.JSON_BLOCK,
+                                onClick = { viewModel.updateSettings(settings.copy(localProtocol = LocalToolProtocol.JSON_BLOCK)) }
+                            )
+                        }
                     }
                 }
             }

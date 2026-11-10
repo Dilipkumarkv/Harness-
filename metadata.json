@@ -1,6 +1,5 @@
 {
   "name": "AndroidHarness",
-  "description": "Mobile AI coding agent with live tool execution cards, project files, and hybrid AI engine.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "description": "Mobile AI coding agent with live tool execution cards, real filesystem and shell tools, and an OpenAI-compatible model client.",
+  "requestFramePermissions": []
 }
