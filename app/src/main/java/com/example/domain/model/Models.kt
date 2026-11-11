@@ -1,5 +1,8 @@
 package com.example.domain.model
 
+import com.example.domain.agent.HarnessSettings
+import com.example.domain.model.ProviderType
+
 enum class ToolCallStatus {
     RUNNING,
     SUCCESS,
@@ -8,7 +11,8 @@ enum class ToolCallStatus {
 
 enum class ProviderType {
     LOCAL_TOOL_LLM,
-    BYOK_CUSTOM
+    BYOK_CUSTOM,
+    ON_DEVICE_LLAMA
 }
 
 enum class LocalToolProtocol {
@@ -91,5 +95,9 @@ data class HarnessSettings(
     val maxAutonomousIterations: Int = 6,
     val autoApproveTools: Boolean = true,
     /** Full path or bare name of the git binary to use. Default "git". */
-    val gitPath: String = "git"
+    val gitPath: String = "git",
+    /** Absolute path of the imported .gguf file used by the on-device provider. */
+    val modelPath: String = "",
+    val modelThreads: Int = 4,
+    val modelContextSize: Int = 4096
 )

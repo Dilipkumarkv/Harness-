@@ -9,14 +9,21 @@ import com.example.data.entity.ProjectEntity
 import com.example.data.entity.SessionEntity
 import com.example.data.entity.ToolCallEntity
 import com.example.data.entity.WorkspaceFileEntity
+import com.example.domain.agent.HttpGenerator
+import com.example.domain.agent.LlmClient
 import com.example.domain.agent.LocalToolCallingEngine
+import com.example.domain.agent.OnDeviceGenerator
+import com.example.domain.agent.TextGenerator
 import com.example.domain.model.ChatMessage
 import com.example.domain.model.DoctorTestResult
 import com.example.domain.model.HarnessSettings
+import com.example.domain.model.ProviderType
 import com.example.domain.model.ToolCallItem
 import com.example.domain.model.ToolCallStatus
+import com.example.domain.settings.SettingsStore
 import com.example.domain.tools.HarnessToolRegistry
 import com.example.domain.tools.WorkspaceFs
+import com.example.llm.ModelManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -44,6 +51,8 @@ class HarnessViewModel(application: Application) : AndroidViewModel(application)
         File(File(application.filesDir, "workspace"), defaultProjectId)
     )
 
+    private val modelManager = ModelManager(getApplication())
+
     private val _settings = MutableStateFlow(HarnessSettings())
     val settings: StateFlow<HarnessSettings> = _settings.asStateFlow()
 
@@ -55,6 +64,15 @@ class HarnessViewModel(application: Application) : AndroidViewModel(application)
         currentProjectId = { defaultProjectId },
         gitCommand = { _settings.value.gitPath }
     )
+
+    /** The active text generator, selected by [settings.providerType]. */
+    private val textGenerator: TextGenerator
+        get() = when (settings.providerType) {
+            ProviderType.BYOK_CUSTOM -> HttpGenerator(LlmClient(), settings)
+            ProviderType.ON_DEVICE_LLAMA -> OnDeviceGenerator(modelManager, settings)
+            else -> LocalToolCallingEngine(toolRegistry) // LOCAL_TOOL_LLM
+        }
+
     val agentEngine = LocalToolCallingEngine(toolRegistry)
 
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())

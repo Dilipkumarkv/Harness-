@@ -2,6 +2,7 @@ package com.example.domain.agent
 
 import com.example.domain.model.LocalToolProtocol
 import com.example.domain.model.ToolDefinition
+import com.example.domain.agent.ToolCallParser
 
 /**
  * Builds the prompt a real model needs to drive the tool registry.

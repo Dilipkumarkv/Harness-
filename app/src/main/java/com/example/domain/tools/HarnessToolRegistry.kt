@@ -12,6 +12,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
+import com.example.domain.tools.WorkspaceFs
+import com.example.domain.tools.ProcessRunner
+import com.example.domain.tools.PatchEngine
 
 /**
  * The nine developer tools the agent can call.

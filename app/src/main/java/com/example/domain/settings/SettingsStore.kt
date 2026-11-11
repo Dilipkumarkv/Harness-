@@ -28,7 +28,10 @@ class SettingsStore(context: Context) {
             modelName = prefs.getString(KEY_MODEL, defaults.modelName) ?: defaults.modelName,
             maxAutonomousIterations = prefs.getInt(KEY_MAX_STEPS, defaults.maxAutonomousIterations),
             autoApproveTools = prefs.getBoolean(KEY_AUTO_APPROVE, defaults.autoApproveTools),
-            gitPath = prefs.getString(KEY_GIT_PATH, defaults.gitPath) ?: defaults.gitPath
+            gitPath = prefs.getString(KEY_GIT_PATH, defaults.gitPath) ?: defaults.gitPath,
+            modelPath = prefs.getString(KEY_MODEL_PATH, defaults.modelPath) ?: defaults.modelPath,
+            modelThreads = prefs.getInt(KEY_MODEL_THREADS, defaults.modelThreads),
+            modelContextSize = prefs.getInt(KEY_MODEL_CTX, defaults.modelContextSize)
         )
     }
 
@@ -42,6 +45,9 @@ class SettingsStore(context: Context) {
             putInt(KEY_MAX_STEPS, settings.maxAutonomousIterations)
             putBoolean(KEY_AUTO_APPROVE, settings.autoApproveTools)
             putString(KEY_GIT_PATH, settings.gitPath)
+            putString(KEY_MODEL_PATH, settings.modelPath)
+            putInt(KEY_MODEL_THREADS, settings.modelThreads)
+            putInt(KEY_MODEL_CTX, settings.modelContextSize)
         }
     }
 
@@ -63,5 +69,8 @@ class SettingsStore(context: Context) {
         const val KEY_MAX_STEPS = "max_steps"
         const val KEY_AUTO_APPROVE = "auto_approve"
         const val KEY_GIT_PATH = "git_path"
+        const val KEY_MODEL_PATH = "model_path"
+        const val KEY_MODEL_THREADS = "model_threads"
+        const val KEY_MODEL_CTX = "model_context"
     }
 }
