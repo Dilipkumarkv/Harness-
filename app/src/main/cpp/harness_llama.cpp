@@ -10,6 +10,7 @@
 #include <jni.h>
 
 #include <android/log.h>
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -68,8 +69,8 @@ Java_com_example_llm_LlamaBridge_nativeLoadModel(
 
     llama_model_params mparams = llama_model_default_params();
     mparams.n_gpu_layers = 0;   // CPU only
-    mparams.use_mmap = true;
-    mparams.use_mlock = false;
+    // v0.9.0 replaced use_mmap/use_mlock with a load_mode enum.
+    mparams.load_mode = LLAMA_LOAD_MODE_MMAP;
 
     llama_model *model = llama_model_load_from_file(path.c_str(), mparams);
     if (model == nullptr) {
@@ -142,13 +143,21 @@ Java_com_example_llm_LlamaBridge_nativeGenerate(
     int32_t n_past = 0;
     const llama_token eos = llama_vocab_eos(session->vocab);
 
-    bool ok = decode_range(ctx, tokens.data(), n_prompt, n_past);
-    n_past += n_prompt;
+    // Prefill in slices no larger than n_batch: one oversized batch fails to decode on long
+    // prompts. Only the final slice needs logits; sampling starts after the whole prompt.
+    bool ok = true;
+    const int32_t kPrefillBatch = 512;
+    for (int32_t start = 0; ok && start < n_prompt; start += kPrefillBatch) {
+        const int32_t n = std::min(kPrefillBatch, n_prompt - start);
+        ok = decode_range(ctx, tokens.data() + start, n, n_past);
+        n_past += n;
+    }
 
     const int32_t limit = maxTokens > 0 ? maxTokens : 512;
     for (int32_t produced = 0; ok && produced < limit; ++produced) {
         const llama_token id = llama_sampler_sample(smpl, ctx, -1);
-        if (id < 0 || id == eos) break;
+        // is_eog covers end-of-generation tokens (e.g. ChatML im_end) beyond plain EOS.
+        if (id < 0 || id == eos || llama_vocab_is_eog(session->vocab, id)) break;
 
         char stack_buf[128];
         int32_t len = llama_token_to_piece(

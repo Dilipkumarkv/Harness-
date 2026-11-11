@@ -1,4 +1,4 @@
-# Build the on-device APK with NDK 27.2
+# Build and test the on-device APK with NDK 27.2 (matches ndkVersion in app/build.gradle.kts)
 #
 # Compiles llama.cpp (fetched by CMake at build time) into libharness_llama.so,
 # packages it with the Kotlin code, and uploads an installable debug APK.
@@ -84,8 +84,11 @@ jobs:
             -keyalg RSA -keysize 2048 -validity 10000 \
             -dname "CN=Android Debug,O=Android,C=US"
 
+      - name: Run unit tests
+        run: ./gradlew :app:testDebugUnitTest --no-daemon --stacktrace
+
       - name: Build debug APK
-        run: gradle :app:assembleDebug --no-daemon --stacktrace
+        run: ./gradlew :app:assembleDebug --no-daemon --stacktrace
 
       - name: Show native libraries
         if: always()

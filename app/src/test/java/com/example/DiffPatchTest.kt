@@ -98,6 +98,6 @@ class DiffPatchTest {
     fun `WorkspaceFs path safety - relative path accepted`() {
         val ws = com.example.domain.tools.WorkspaceFs(java.io.File("/tmp/test"))
         val f = ws.resolve("subdir/file.txt")
-        assertTrue(f.path.startsWith("/tmp/test/"))
+        assertTrue(f.path.startsWith(ws.canonicalRoot().path + java.io.File.separator))
     }
 }

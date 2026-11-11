@@ -8,6 +8,7 @@ import com.example.domain.model.ToolCallStatus
 import com.example.domain.model.ToolDefinition
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -41,8 +42,26 @@ class HarnessToolRegistry(
             "wc", "pwd", "tree", "du", "stat", "file", "echo", "uname", "date", "which"
         )
 
-        private val BLOCKED_TOKENS = setOf("-exec", "-execdir", "-delete", "-ok", "-okdir")
+        private val BLOCKED_TOKENS = setOf(
+            "-exec", "-execdir", "-delete", "-ok", "-okdir", "-fprint", "-fprintf", "-fls"
+        )
+
+        /** Options that can escape the workspace or execute arbitrary code. */
+        private val GIT_BLOCKED_OPTIONS = setOf(
+            "-c", "-C", "--exec-path", "--git-dir", "--work-tree", "--namespace",
+            "--super-prefix", "--config", "--template", "--upload-pack", "--receive-pack",
+            "--output", "--separate-git-dir"
+        )
+        private val GRADLE_BLOCKED_OPTIONS = setOf(
+            "-I", "--init-script", "-p", "--project-dir", "-g", "--gradle-user-home",
+            "--project-cache-dir", "-c", "--settings-file", "-b", "--build-file"
+        )
+
+        private val APPROVAL_REQUIRED_TOOLS = setOf("write_file", "apply_patch", "shell_exec")
     }
+
+    /** Mutating tools always ask the user, even when auto-approve is on. */
+    fun requiresApproval(name: String): Boolean = name in APPROVAL_REQUIRED_TOOLS
 
     val toolDefinitions = listOf(
         ToolDefinition(
@@ -298,9 +317,16 @@ class HarnessToolRegistry(
     // ---------------------------------------------------------------------------------------
 
     suspend fun runCommand(command: String, timeoutMs: Long = DEFAULT_SHELL_TIMEOUT_MS): ExecutionResult =
-        withContext(Dispatchers.IO) { runCommandBlocking(command, timeoutMs) }
+        withContext(Dispatchers.IO) {
+            val job = coroutineContext[Job]
+            runCommandBlocking(command, timeoutMs) { job?.isActive == false }
+        }
 
-    private fun runCommandBlocking(command: String, timeoutMs: Long): ExecutionResult {
+    private fun runCommandBlocking(
+        command: String,
+        timeoutMs: Long,
+        isCancelled: () -> Boolean = { false }
+    ): ExecutionResult {
         val raw = command.trim()
         if (raw.isEmpty()) throw WorkspaceFs.IoFailure("shell_exec requires a non-empty 'command'.")
 
@@ -317,6 +343,33 @@ class HarnessToolRegistry(
         if (blocked != null) {
             return error("Argument '$blocked' is blocked because it executes further commands.")
         }
+
+        // Arguments must stay inside the workspace: no absolute paths, no '..', no backslashes.
+        val escapingArg = argv.drop(1).firstOrNull { arg ->
+            arg.startsWith("/") || arg.startsWith("~") || arg.contains("\\") ||
+                Regex("^[A-Za-z]:").containsMatchIn(arg) ||
+                arg.split('/').any { it == ".." }
+        }
+        if (escapingArg != null) {
+            return error(
+                "Argument '$escapingArg' is blocked: shell_exec only accepts workspace-relative paths " +
+                    "(no absolute paths, '..' or backslashes)."
+            )
+        }
+
+        val optionBlocklist = when (program) {
+            "git" -> GIT_BLOCKED_OPTIONS
+            "gradle", "gradlew" -> GRADLE_BLOCKED_OPTIONS
+            else -> emptySet()
+        }
+        val badOption = argv.drop(1).firstOrNull { it.substringBefore('=') in optionBlocklist }
+        if (badOption != null) {
+            return error(
+                "Option '$badOption' is blocked for $program because it can escape the workspace " +
+                    "or run arbitrary code."
+            )
+        }
+
         val metachar = raw.firstOrNull { it in ";|&<>`" || it == '$' }
         if (metachar != null) {
             return error(
@@ -329,7 +382,8 @@ class HarnessToolRegistry(
             argv = argv,
             workingDir = workspace.canonicalRoot(),
             timeoutMs = timeoutMs.coerceIn(1_000L, MAX_SHELL_TIMEOUT_MS),
-            maxOutputBytes = MAX_OUTPUT_CHARS
+            maxOutputBytes = MAX_OUTPUT_CHARS,
+            isCancelled = isCancelled
         )
 
         if (result.launchError != null) {
@@ -341,7 +395,7 @@ class HarnessToolRegistry(
 
         val text = buildString {
             append("$ ${result.commandLine}\n")
-            append("exit: ${result.exitCode}${if (result.timedOut) " (timed out)" else ""}  ${result.durationMs} ms\n")
+            append("exit: ${result.exitCode}${if (result.timedOut) " (timed out)" else ""}${if (result.cancelled) " (cancelled)" else ""}  ${result.durationMs} ms\n")
             append("\n")
             append(result.stdout.take(MAX_OUTPUT_CHARS).ifBlank { "(no stdout)" })
             if (result.stderr.isNotBlank()) {

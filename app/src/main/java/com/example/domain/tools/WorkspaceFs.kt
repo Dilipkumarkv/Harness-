@@ -2,6 +2,10 @@ package com.example.domain.tools
 
 import java.io.File
 import java.io.IOException
+import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+import java.util.UUID
 
 /**
  * Real filesystem access, scoped to one project directory.
@@ -45,10 +49,18 @@ class WorkspaceFs(val root: File) {
     fun resolve(relative: String): File {
         val trimmed = relative.trim()
         if (trimmed.startsWith("/") || trimmed.startsWith("\\")) {
-            throw PathException("Path must be relative to the workspace root, got '$relative'.")
+            throw PathException("Path '$relative' escapes the workspace root: absolute paths are not allowed.")
         }
-        if (Regex("^[A-Za-z]:[\\\\/]").containsMatchIn(trimmed)) {
-            throw PathException("Path must be relative to the workspace root, got '$relative'.")
+        if (Regex("^[A-Za-z]:").containsMatchIn(trimmed)) {
+            throw PathException("Path '$relative' escapes the workspace root: drive-qualified paths are not allowed.")
+        }
+        if (trimmed.contains("\\")) {
+            throw PathException("Backslashes are not allowed in workspace paths, got '$relative'.")
+        }
+        // Reject '..' anywhere, even when the normalized path would land back inside the root:
+        // traversal segments are a hallmark of escape attempts and are never legitimate here.
+        if (trimmed.split('/').any { it == ".." }) {
+            throw PathException("'..' traversal is not allowed in workspace paths, got '$relative'.")
         }
         val candidate = if (trimmed.isEmpty() || trimmed == ".") root else File(root, trimmed)
         val canonical = try {
@@ -103,14 +115,18 @@ class WorkspaceFs(val root: File) {
         val target = resolve(relative)
         if (target.isDirectory) throw IoFailure("'$relative' is a directory.")
         val created = !target.exists()
-        target.parentFile?.mkdirs()
+        val parent = target.parentFile ?: root
+        parent.mkdirs()
 
-        val temp = File(target.parentFile ?: root, ".${target.name}.harness-tmp")
+        // Unique temp name: a predictable one could be pre-created (or symlinked) by another
+        // process to clobber an arbitrary file during the rename.
+        val temp = File(parent, ".${target.name}.${UUID.randomUUID()}.tmp")
         try {
             temp.writeText(content, Charsets.UTF_8)
-            if (!temp.renameTo(target)) {
-                temp.copyTo(target, overwrite = true)
-                temp.delete()
+            try {
+                Files.move(temp.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE)
+            } catch (_: AtomicMoveNotSupportedException) {
+                Files.move(temp.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
             }
         } catch (e: IOException) {
             temp.delete()
@@ -132,13 +148,18 @@ class WorkspaceFs(val root: File) {
         if (!base.isDirectory) throw IoFailure("'$relative' is a file, not a directory.")
 
         val out = mutableListOf<Entry>()
+        val visited = mutableSetOf<String>()
         fun walk(dir: File, level: Int) {
             if (out.size >= limit) return
+            if (Files.isSymbolicLink(dir.toPath())) return
+            val canonical = try { dir.canonicalPath } catch (_: IOException) { dir.path }
+            if (!visited.add(canonical)) return
             val children = dir.listFiles()?.sortedWith(
                 compareBy<File> { !it.isDirectory }.thenBy { it.name.lowercase() }
             ) ?: return
             for (child in children) {
                 if (out.size >= limit) return
+                if (Files.isSymbolicLink(child.toPath())) continue
                 if (child.isDirectory && child.name in IGNORED_DIRS) continue
                 out.add(Entry(relativeOf(child), child.isDirectory, if (child.isDirectory) 0L else child.length()))
                 if (child.isDirectory && level < depth) walk(child, level + 1)
@@ -151,12 +172,18 @@ class WorkspaceFs(val root: File) {
     /** Every regular file under the root (relative paths), used for indexing and search. */
     fun walkFiles(limit: Int = 5000): List<String> {
         val out = mutableListOf<String>()
+        val visited = mutableSetOf<String>()
         fun walk(dir: File) {
             if (out.size >= limit) return
+            // Never follow symlinks: they can point outside the workspace or form cycles.
+            if (Files.isSymbolicLink(dir.toPath())) return
+            val canonical = try { dir.canonicalPath } catch (_: IOException) { dir.path }
+            if (!visited.add(canonical)) return
             val children = dir.listFiles() ?: return
             for (child in children) {
                 if (out.size >= limit) return
                 if (child.name in IGNORED_DIRS) continue
+                if (Files.isSymbolicLink(child.toPath())) continue
                 if (child.isDirectory) walk(child) else out.add(relativeOf(child))
             }
         }

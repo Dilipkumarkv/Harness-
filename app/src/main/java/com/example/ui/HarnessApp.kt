@@ -113,6 +113,7 @@ fun HarnessApp(
                                     text = when (settings.providerType) {
                                         ProviderType.LOCAL_TOOL_LLM -> "LOCAL"
                                         ProviderType.BYOK_CUSTOM -> "BYOK"
+                                        ProviderType.ON_DEVICE_LLAMA -> "LLAMA"
                                     },
                                     color = OceanIceWhite,
                                     fontSize = 9.sp,

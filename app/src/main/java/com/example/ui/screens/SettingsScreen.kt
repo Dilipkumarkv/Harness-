@@ -1,5 +1,7 @@
 package com.example.ui.screens
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -17,19 +19,23 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.MedicalServices
 import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -45,6 +51,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -54,6 +61,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.domain.model.HarnessSettings
 import com.example.domain.model.LocalToolProtocol
 import com.example.domain.model.ProviderType
+import com.example.llm.ModelManager
 import com.example.ui.theme.CyberAmber
 import com.example.ui.theme.CyberRose
 import com.example.ui.theme.CyberSky
@@ -74,6 +82,20 @@ fun SettingsScreen(
     modifier: Modifier = Modifier
 ) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val models by viewModel.models.collectAsStateWithLifecycle()
+    val isImporting by viewModel.isImportingModel.collectAsStateWithLifecycle()
+    val importError by viewModel.modelImportError.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+
+    val pickModel = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            val displayName = context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                val idx = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                if (idx >= 0 && cursor.moveToFirst()) cursor.getString(idx) else null
+            }
+            viewModel.importModel(uri, displayName)
+        }
+    }
 
     var customKey by remember(settings) { mutableStateOf(settings.customApiKey) }
     var customEndpoint by remember(settings) { mutableStateOf(settings.customEndpointUrl) }
@@ -132,6 +154,16 @@ fun SettingsScreen(
                         selected = settings.providerType == ProviderType.BYOK_CUSTOM,
                         onClick = {
                             viewModel.updateSettings(settings.copy(providerType = ProviderType.BYOK_CUSTOM))
+                        }
+                    )
+
+                    // Option 3: On-device GGUF model via llama.cpp
+                    ProviderOptionItem(
+                        title = "On-Device Model (GGUF)",
+                        description = "Run an imported .gguf model fully offline with llama.cpp. No network, no API key.",
+                        selected = settings.providerType == ProviderType.ON_DEVICE_LLAMA,
+                        onClick = {
+                            viewModel.updateSettings(settings.copy(providerType = ProviderType.ON_DEVICE_LLAMA))
                         }
                     )
                 }
@@ -294,6 +326,129 @@ fun SettingsScreen(
                             text = "How the model is asked to emit tool calls. Pick whichever your model follows best.",
                             color = SlateMuted,
                             fontSize = 10.sp
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            ProtocolChip(
+                                label = "XML",
+                                selected = settings.localProtocol == LocalToolProtocol.XML_TAGS,
+                                onClick = { viewModel.updateSettings(settings.copy(localProtocol = LocalToolProtocol.XML_TAGS)) }
+                            )
+                            ProtocolChip(
+                                label = "ReAct",
+                                selected = settings.localProtocol == LocalToolProtocol.REACT_TEXT,
+                                onClick = { viewModel.updateSettings(settings.copy(localProtocol = LocalToolProtocol.REACT_TEXT)) }
+                            )
+                            ProtocolChip(
+                                label = "JSON",
+                                selected = settings.localProtocol == LocalToolProtocol.JSON_BLOCK,
+                                onClick = { viewModel.updateSettings(settings.copy(localProtocol = LocalToolProtocol.JSON_BLOCK)) }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // On-device GGUF model management
+        if (settings.providerType == ProviderType.ON_DEVICE_LLAMA) {
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = SlateDark800),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, SlateDark600),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.PhoneAndroid,
+                                contentDescription = null,
+                                tint = NeonEmerald,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "ON-DEVICE MODEL (GGUF)",
+                                color = SlateWhite,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                letterSpacing = 1.sp
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        Text(
+                            text = "Import a .gguf model (e.g. Qwen2.5-Coder-1.5B/3B-Instruct, Q4_K_M). " +
+                                "Inference runs on this device's CPU via llama.cpp — small quantized models work best. " +
+                                "Uses ${settings.modelThreads} threads and a ${settings.modelContextSize}-token context.",
+                            color = SlateLight,
+                            fontSize = 11.sp,
+                            lineHeight = 16.sp
+                        )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Button(
+                            onClick = { pickModel.launch(arrayOf("*/*")) },
+                            enabled = !isImporting,
+                            colors = ButtonDefaults.buttonColors(containerColor = NeonEmerald),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.testTag("import_model_button")
+                        ) {
+                            if (isImporting) {
+                                CircularProgressIndicator(
+                                    color = Color(0xFF04140C),
+                                    strokeWidth = 2.dp,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Importing…", color = Color(0xFF04140C), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            } else {
+                                Text("Import .gguf model", color = Color(0xFF04140C), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
+                        }
+
+                        if (importError != null) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = importError ?: "",
+                                color = CyberRose,
+                                fontSize = 11.sp,
+                                modifier = Modifier.testTag("model_import_error")
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        if (models.isEmpty()) {
+                            Text(
+                                text = "No models imported yet.",
+                                color = SlateMuted,
+                                fontSize = 11.sp
+                            )
+                        } else {
+                            models.forEach { model ->
+                                ModelRow(
+                                    model = model,
+                                    selected = settings.modelPath == model.path,
+                                    onSelect = { viewModel.selectModel(model.path) },
+                                    onDelete = { viewModel.deleteModel(model.path) }
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        Text(
+                            text = "TOOL-CALL FORMAT",
+                            color = SlateWhite,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp,
+                            letterSpacing = 1.sp
                         )
 
                         Spacer(modifier = Modifier.height(8.dp))
@@ -496,5 +651,50 @@ fun ProtocolChip(
             fontWeight = FontWeight.SemiBold,
             fontFamily = FontFamily.Monospace
         )
+    }
+}
+
+@Composable
+fun ModelRow(
+    model: ModelManager.ModelInfo,
+    selected: Boolean,
+    onSelect: () -> Unit,
+    onDelete: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onSelect)
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        RadioButton(
+            selected = selected,
+            onClick = onSelect,
+            colors = RadioButtonDefaults.colors(selectedColor = NeonEmerald, unselectedColor = SlateMuted)
+        )
+        Spacer(modifier = Modifier.width(6.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = model.name,
+                color = if (selected) NeonEmerald else SlateWhite,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = FontFamily.Monospace
+            )
+            Text(
+                text = "${model.sizeBytes / 1_048_576} MB",
+                color = SlateMuted,
+                fontSize = 10.sp
+            )
+        }
+        IconButton(onClick = onDelete, modifier = Modifier.testTag("delete_model_${model.name}")) {
+            Icon(
+                imageVector = Icons.Default.Delete,
+                contentDescription = "Delete ${model.name}",
+                tint = CyberRose,
+                modifier = Modifier.size(18.dp)
+            )
+        }
     }
 }

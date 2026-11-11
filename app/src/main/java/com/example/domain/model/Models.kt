@@ -1,8 +1,5 @@
 package com.example.domain.model
 
-import com.example.domain.agent.HarnessSettings
-import com.example.domain.model.ProviderType
-
 enum class ToolCallStatus {
     RUNNING,
     SUCCESS,

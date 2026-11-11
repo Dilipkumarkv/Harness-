@@ -236,8 +236,11 @@ object PatchEngine {
 
         val hunks = parseHunks(patchText)
         if (hunks.isEmpty()) {
+            // Trim before sniffing: an indented "@@" is still a malformed diff, not replacement
+            // content, and must fail rather than silently overwrite the file.
             val looksLikeDiff = patchText.lineSequence().any {
-                it.startsWith("---") || it.startsWith("+++") || it.startsWith("@@") || it.startsWith("diff --git")
+                val t = it.trimStart()
+                t.startsWith("---") || t.startsWith("+++") || t.startsWith("@@") || t.startsWith("diff --git")
             }
             return if (looksLikeDiff) {
                 ApplyResult.Failure(

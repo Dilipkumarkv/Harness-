@@ -1,6 +1,7 @@
 package com.example.ui.viewmodel
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.db.HarnessDatabase
@@ -65,15 +66,17 @@ class HarnessViewModel(application: Application) : AndroidViewModel(application)
         gitCommand = { _settings.value.gitPath }
     )
 
-    /** The active text generator, selected by [settings.providerType]. */
-    private val textGenerator: TextGenerator
-        get() = when (settings.providerType) {
-            ProviderType.BYOK_CUSTOM -> HttpGenerator(LlmClient(), settings)
-            ProviderType.ON_DEVICE_LLAMA -> OnDeviceGenerator(modelManager, settings)
-            else -> LocalToolCallingEngine(toolRegistry) // LOCAL_TOOL_LLM
-        }
+    /** Builds the text generator for the selected provider; null means the keyword router runs. */
+    private fun generatorFor(settings: HarnessSettings): TextGenerator? = when (settings.providerType) {
+        ProviderType.BYOK_CUSTOM -> HttpGenerator(LlmClient(), settings)
+        ProviderType.ON_DEVICE_LLAMA -> OnDeviceGenerator(modelManager, settings)
+        ProviderType.LOCAL_TOOL_LLM -> null
+    }
 
-    val agentEngine = LocalToolCallingEngine(toolRegistry)
+    val agentEngine = LocalToolCallingEngine(
+        toolRegistry = toolRegistry,
+        generatorFor = ::generatorFor
+    )
 
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
     val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
@@ -114,11 +117,22 @@ class HarnessViewModel(application: Application) : AndroidViewModel(application)
 
     private var agentExecutionJob: Job? = null
 
+    // On-device GGUF models.
+    private val _models = MutableStateFlow<List<ModelManager.ModelInfo>>(emptyList())
+    val models: StateFlow<List<ModelManager.ModelInfo>> = _models.asStateFlow()
+
+    private val _isImportingModel = MutableStateFlow(false)
+    val isImportingModel: StateFlow<Boolean> = _isImportingModel.asStateFlow()
+
+    private val _modelImportError = MutableStateFlow<String?>(null)
+    val modelImportError: StateFlow<String?> = _modelImportError.asStateFlow()
+
     val workspaceRootPath: String get() = workspace.canonicalRoot().path
 
     init {
         viewModelScope.launch {
             _settings.value = settingsStore.load()
+            refreshModels()
             initializeWorkspace()
         }
         observeDatabase()
@@ -316,6 +330,7 @@ class MainActivity : ComponentActivity() {
     fun sendPrompt(promptText: String) {
         val trimmed = promptText.trim()
         if (trimmed.isEmpty() || _isAgentRunning.value) return
+        _isAgentRunning.value = true
 
         val userMsgId = "msg_${System.currentTimeMillis()}"
         val assistantMsgId = "msg_${System.currentTimeMillis() + 1}"
@@ -353,7 +368,9 @@ class MainActivity : ComponentActivity() {
             val accumulatedToolCalls = mutableListOf<ToolCallItem>()
             var currentExplanation = ""
             var step = 1
-            val maxSteps = _settings.value.maxAutonomousIterations
+            // Snapshot settings for the whole turn so a mid-turn provider switch cannot corrupt it.
+            val turnSettings = _settings.value
+            val maxSteps = turnSettings.maxAutonomousIterations
 
             try {
                 while (step <= maxSteps && _isAgentRunning.value) {
@@ -361,7 +378,7 @@ class MainActivity : ComponentActivity() {
                         userPrompt = prompt,
                         stepNumber = step,
                         previousToolCalls = accumulatedToolCalls,
-                        settings = _settings.value
+                        settings = turnSettings
                     )
 
                     _currentThought.value = stepResult.thought
@@ -443,6 +460,7 @@ class MainActivity : ComponentActivity() {
 
     fun stopAgent() {
         agentExecutionJob?.cancel()
+        agentEngine.approvalGate.cancel()
         _isAgentRunning.value = false
         _currentThought.value = null
     }
@@ -488,6 +506,58 @@ class MainActivity : ComponentActivity() {
     fun updateSettings(newSettings: HarnessSettings) {
         _settings.value = newSettings
         settingsStore.save(newSettings)
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // On-device model management
+    // ---------------------------------------------------------------------------------------
+
+    fun refreshModels() {
+        _models.value = modelManager.list()
+    }
+
+    fun importModel(uri: Uri, displayName: String?) {
+        if (_isImportingModel.value) return
+        viewModelScope.launch {
+            _isImportingModel.value = true
+            _modelImportError.value = null
+            try {
+                val result = modelManager.importFrom(uri, displayName)
+                result.onSuccess { info ->
+                    refreshModels()
+                    updateSettings(_settings.value.copy(modelPath = info.path))
+                }.onFailure { e ->
+                    _modelImportError.value = e.message ?: "Import failed."
+                }
+            } finally {
+                _isImportingModel.value = false
+            }
+        }
+    }
+
+    fun selectModel(path: String) {
+        updateSettings(_settings.value.copy(modelPath = path))
+    }
+
+    fun deleteModel(path: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val deleted = modelManager.delete(path)
+            if (deleted) {
+                if (_settings.value.modelPath == path) {
+                    updateSettings(_settings.value.copy(modelPath = ""))
+                }
+                refreshModels()
+            }
+        }
+    }
+
+    fun clearModelImportError() {
+        _modelImportError.value = null
+    }
+
+    override fun onCleared() {
+        modelManager.unload()
+        super.onCleared()
     }
 
     fun clearSessionHistory() {

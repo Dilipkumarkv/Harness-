@@ -70,6 +70,7 @@ import com.example.ui.theme.OceanIceSky
 import com.example.ui.theme.OceanIceWhite
 import com.example.ui.theme.OceanMuted
 import com.example.ui.theme.OceanSteel
+import com.example.ui.theme.OceanSuccess
 import com.example.ui.theme.OceanWarning
 import com.example.ui.viewmodel.HarnessViewModel
 
@@ -165,9 +166,10 @@ fun AgentWorkspaceScreen(
         }
 
             // Approval gate modal — when a tool needs user consent
-            if (pendingApproval != null) {
+            val approval = pendingApproval
+            if (approval != null) {
                 ApprovalDialog(
-                    pending = pendingApproval,
+                    pending = approval,
                     onApprove = { viewModel.agentEngine.approvalGate.approve() },
                     onDeny = { viewModel.agentEngine.approvalGate.deny() }
                 )

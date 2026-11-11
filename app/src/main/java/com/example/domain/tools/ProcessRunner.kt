@@ -22,10 +22,11 @@ object ProcessRunner {
         val stderr: String,
         val timedOut: Boolean,
         val durationMs: Long,
-        val launchError: String? = null
+        val launchError: String? = null,
+        val cancelled: Boolean = false
     ) {
         val commandLine: String get() = argv.joinToString(" ")
-        val isSuccess: Boolean get() = launchError == null && !timedOut && exitCode == 0
+        val isSuccess: Boolean get() = launchError == null && !timedOut && !cancelled && exitCode == 0
     }
 
     fun run(
@@ -33,7 +34,8 @@ object ProcessRunner {
         workingDir: File? = null,
         timeoutMs: Long = 30_000L,
         maxOutputBytes: Int = 64_000,
-        extraEnv: Map<String, String> = emptyMap()
+        extraEnv: Map<String, String> = emptyMap(),
+        isCancelled: () -> Boolean = { false }
     ): Result {
         if (argv.isEmpty()) {
             return Result(argv, -1, "", "", false, 0L, "No command given")
@@ -80,9 +82,18 @@ object ProcessRunner {
         waiter.isDaemon = true
         waiter.start()
 
-        waiter.join(timeoutMs)
-        val timedOut = waiter.isAlive
-        if (timedOut) {
+        // Poll in short slices so a cancelled agent turn can kill the child promptly.
+        val deadline = System.currentTimeMillis() + timeoutMs
+        var cancelled = false
+        while (waiter.isAlive && System.currentTimeMillis() < deadline) {
+            if (isCancelled()) {
+                cancelled = true
+                break
+            }
+            waiter.join(100L)
+        }
+        val timedOut = waiter.isAlive && !cancelled
+        if (waiter.isAlive) {
             process.destroy()
             waiter.join(1_500L)
             if (waiter.isAlive) process.destroyForcibly()
@@ -93,11 +104,12 @@ object ProcessRunner {
 
         return Result(
             argv = argv,
-            exitCode = if (timedOut) -1 else exitCode.get().let { if (it == Int.MIN_VALUE) -1 else it },
+            exitCode = if (timedOut || cancelled) -1 else exitCode.get().let { if (it == Int.MIN_VALUE) -1 else it },
             stdout = outBuffer.toString(),
             stderr = errBuffer.toString(),
             timedOut = timedOut,
-            durationMs = System.currentTimeMillis() - startedAt
+            durationMs = System.currentTimeMillis() - startedAt,
+            cancelled = cancelled
         )
     }
 

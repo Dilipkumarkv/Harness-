@@ -43,7 +43,7 @@ abstract class HarnessDatabase : RoomDatabase() {
                     context.applicationContext,
                     HarnessDatabase::class.java,
                     "android_harness.db"
-                ).fallbackToDestructiveMigration().build()
+                ).build()
                 INSTANCE = instance
                 instance
             }

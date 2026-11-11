@@ -66,7 +66,7 @@ fun GitDiffsScreen(
     val gitLogText by viewModel.gitLogText.collectAsStateWithLifecycle()
     val isRefreshing by viewModel.isGitRefreshing.collectAsStateWithLifecycle()
 
-    val selectedDiff by remember { mutableStateOf<String?>(null) }
+    var selectedDiff by remember { mutableStateOf<String?>(null) }
 
     LazyColumn(
         modifier = modifier

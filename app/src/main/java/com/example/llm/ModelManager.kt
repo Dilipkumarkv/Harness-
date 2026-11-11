@@ -16,9 +16,16 @@ import com.example.llm.LlamaBridge
  */
 class ModelManager(context: Context) {
 
+    companion object {
+        /** magic(4) + version(4) + tensor_count(8) + metadata_kv_count(8). */
+        private const val MIN_GGUF_BYTES = 24L
+    }
+
     private val appContext = context.applicationContext
     private val modelsDir: File
         get() = File(appContext.filesDir, "models").apply { if (!exists()) mkdirs() }
+
+    private val lock = Any()
 
     @Volatile
     private var loadedHandle: Long = 0L
@@ -34,65 +41,106 @@ class ModelManager(context: Context) {
         ?.map { ModelInfo(it.absolutePath, it.name, it.length()) }
         ?: emptyList()
 
-    /** Copies a picked document into private storage, checking the GGUF magic. */
+    /**
+     * Copies a picked document into private storage via a `.part` temp file, checking the GGUF
+     * magic. Never overwrites an existing model: a failed or malicious import must not destroy
+     * the model the user already has.
+     */
     suspend fun importFrom(uri: Uri, displayName: String? = null): Result<ModelInfo> =
         withContext(Dispatchers.IO) {
             val name = sanitize(displayName ?: "model.gguf")
             val target = File(modelsDir, name)
+            if (target.exists()) {
+                return@withContext Result.failure(
+                    IOException("A model named '$name' already exists. Delete it first or choose a different name.")
+                )
+            }
+            val part = File(modelsDir, "$name.part")
             try {
                 appContext.contentResolver.openInputStream(uri)?.use { input ->
-                    target.outputStream().use { output -> input.copyTo(output, DEFAULT_BUFFER_SIZE) }
+                    part.outputStream().use { output -> input.copyTo(output, DEFAULT_BUFFER_SIZE) }
                 } ?: return@withContext Result.failure(IOException("Could not open the selected file."))
 
-                if (!hasGgufMagic(target)) {
-                    target.delete()
+                if (part.length() < MIN_GGUF_BYTES || !hasGgufMagic(part)) {
+                    part.delete()
                     return@withContext Result.failure(
-                        IOException("That file is not a GGUF model (missing 'GGUF' magic bytes).")
+                        IOException("That file is not a GGUF model (missing 'GGUF' magic bytes or truncated header).")
                     )
+                }
+                if (!part.renameTo(target)) {
+                    part.delete()
+                    return@withContext Result.failure(IOException("Could not finalize the imported model."))
                 }
                 Result.success(ModelInfo(target.absolutePath, target.name, target.length()))
             } catch (e: Exception) {
-                target.delete()
+                part.delete()
                 Result.failure(IOException("Import failed: ${e.message}", e))
             }
         }
 
+    /** Deletes a model, but only if it really lives inside the models directory. */
     fun delete(path: String): Boolean {
-        if (path == loadedPath) unload()
-        return File(path).delete()
+        val canonical = try {
+            File(path).canonicalFile
+        } catch (_: IOException) {
+            return false
+        }
+        val dir = try {
+            modelsDir.canonicalFile
+        } catch (_: IOException) {
+            return false
+        }
+        if (canonical.parentFile?.path != dir.path || !canonical.isFile) return false
+        synchronized(lock) {
+            if (path == loadedPath || canonical.path == loadedPath) unloadLocked()
+            return canonical.delete()
+        }
     }
 
     /** Loads [path] if it is not already resident. Returns an error message on failure. */
     suspend fun ensureLoaded(path: String, threads: Int, contextSize: Int): String? =
         withContext(Dispatchers.IO) {
-            if (!LlamaBridge.isAvailable) {
-                return@withContext "Native library not loaded (${LlamaBridge.unavailableReason}). " +
-                    "Build the app with the Android NDK to enable on-device inference."
-            }
-            if (path.isBlank()) return@withContext "No model selected. Import a .gguf file first."
-            if (!File(path).isFile) return@withContext "Model file is missing: $path"
+            synchronized(lock) {
+                if (!LlamaBridge.isAvailable) {
+                    return@synchronized "Native library not loaded (${LlamaBridge.unavailableReason}). " +
+                        "Build the app with the Android NDK to enable on-device inference."
+                }
+                if (path.isBlank()) return@synchronized "No model selected. Import a .gguf file first."
+                val file = File(path)
+                if (!file.isFile) return@synchronized "Model file is missing: $path"
+                val inside = try {
+                    file.canonicalFile.parentFile?.path == modelsDir.canonicalFile.path
+                } catch (_: IOException) {
+                    false
+                }
+                if (!inside) return@synchronized "Model must live in the app's models directory: $path"
 
-            if (loadedHandle != 0L && loadedPath == path) return@withContext null
+                if (loadedHandle != 0L && loadedPath == path) return@synchronized null
 
-            unload()
-            val handle = LlamaBridge.nativeLoadModel(path, threads, contextSize)
-            if (handle == 0L) {
-                return@withContext "llama.cpp could not load ${File(path).name}. " +
-                    "It may be corrupt, or need more RAM than this device has."
+                unloadLocked()
+                val handle = LlamaBridge.nativeLoadModel(path, threads, contextSize)
+                if (handle == 0L) {
+                    return@synchronized "llama.cpp could not load ${file.name}. " +
+                        "It may be corrupt, or need more RAM than this device has."
+                }
+                loadedHandle = handle
+                loadedPath = path
+                null
             }
-            loadedHandle = handle
-            loadedPath = path
-            null
         }
 
     /** Blocking generation against the loaded model. Must be called from an IO dispatcher. */
-    fun generate(prompt: String, maxTokens: Int, threads: Int, contextSize: Int): String {
-        val handle = loadedHandle
-        if (handle == 0L) return ""
-        return LlamaBridge.nativeGenerate(handle, prompt, maxTokens, threads, contextSize)
-    }
+    fun generate(prompt: String, maxTokens: Int, threads: Int, contextSize: Int): String =
+        synchronized(lock) {
+            val handle = loadedHandle
+            if (handle == 0L) "" else LlamaBridge.nativeGenerate(handle, prompt, maxTokens, threads, contextSize)
+        }
 
     fun unload() {
+        synchronized(lock) { unloadLocked() }
+    }
+
+    private fun unloadLocked() {
         val handle = loadedHandle
         if (handle != 0L) {
             LlamaBridge.nativeFreeModel(handle)
