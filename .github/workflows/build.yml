@@ -48,7 +48,9 @@ jobs:
           echo "sdkmanager=$SDKMANAGER"
           "$SDKMANAGER" --version
           yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
-          "$SDKMANAGER" --install \
+          # `yes |` also guards the install: sdkmanager can prompt for a licence
+          # mid-install and would otherwise block until the job timeout.
+          yes | "$SDKMANAGER" --sdk_root="$SDK" --install \
             "platforms;android-36" \
             "build-tools;36.0.0" \
             "cmake;3.22.1" \
