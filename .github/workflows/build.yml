@@ -33,7 +33,8 @@ jobs:
 
       # Ubuntu runners ship Android SDK but the path varies. Install NDK + SDK
       # using the sdkmanager that is already on the runner, no third-party
-      # action in the path. Guard against licence prompts with `yes |`.
+      # action in the path. Licence prompts are answered by feeding `yes`
+      # through process substitution (see below).
       - name: Install NDK and SDK packages
         shell: bash
         run: |
@@ -56,14 +57,15 @@ jobs:
           echo "SDK root: $SDK"
 
           # Accept all licences non-interactively, then install.
-          # The `yes |` guards both --licenses and --install (sdkmanager can
-          # prompt mid-install for individual package licences).
-          yes | "$SDKMANAGER" --sdk_root="$SDK" --licenses > /dev/null 2>&1 || true
-          yes | "$SDKMANAGER" --sdk_root="$SDK" --install \
+          # Feed `yes` via process substitution, NOT a pipeline: when sdkmanager
+          # exits, `yes` gets SIGPIPE, and bash's -o pipefail (the Actions
+          # default) would fail the step even though the install succeeded.
+          "$SDKMANAGER" --sdk_root="$SDK" --licenses < <(yes) > /dev/null 2>&1 || true
+          "$SDKMANAGER" --sdk_root="$SDK" --install \
             "platforms;android-36" \
             "build-tools;36.0.0" \
             "cmake;3.22.1" \
-            "ndk;27.2.12479018"
+            "ndk;27.2.12479018" < <(yes)
 
           echo "--- verifying NDK ---"
           ls -1 "$SDK/ndk"
