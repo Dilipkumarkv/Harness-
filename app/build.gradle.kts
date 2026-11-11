@@ -6,16 +6,47 @@ plugins {
 
 android {
   namespace = "com.example"
-  compileSdk { version = release(36) { minorApiLevel = 1 } }
+  compileSdk = 36
+  // Matches the NDK the CI workflow installs. llama.cpp needs 26+ at minimum.
+  ndkVersion = "27.2.12479018"
 
   defaultConfig {
     applicationId = "com.aistudio.androidharness.zqmvkr"
-    minSdk = 24
+    minSdk = 26
     targetSdk = 36
     versionCode = 1
     versionName = "1.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+    // One ABI keeps the APK small; every modern phone is arm64.
+    ndk {
+      abiFilters += "arm64-v8a"
+    }
+
+    externalNativeBuild {
+      cmake {
+        arguments += listOf(
+          "-DCMAKE_BUILD_TYPE=Release",
+          "-DANDROID_STL=c++_shared"
+        )
+      }
+    }
+  }
+
+  externalNativeBuild {
+    cmake {
+      path = file("src/main/cpp/CMakeLists.txt")
+      version = "3.22.1"
+    }
+  }
+
+  packaging {
+    // llama.cpp is linked statically into our .so; nothing to strip out, but keep
+    // the build from packing duplicate runtime bits if a dependency adds them.
+    jniLibs {
+      useLegacyPackaging = false
+    }
   }
 
   // Do not remove or modify these signingConfigs. They are necessary for building, installing,

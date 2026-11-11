@@ -1,10 +1,9 @@
 # Build the on-device APK with NDK 27.2
 #
-# This workflow compiles the llama.cpp native library and packages everything into
-# an installable debug APK. The artifact is uploaded so you can download it from
-# the Actions run page — no local NDK/CMake/gradle required.
+# Compiles llama.cpp (fetched at build time by CMake) into libharness_llama.so,
+# packages it with the Kotlin code, and uploads an installable debug APK.
 #
-# Trigger: push to main, or run manually from the Actions tab.
+# Download: Actions run page -> Artifacts -> "androidharness-debug".
 
 name: Build AndroidHarness (on-device llama.cpp)
 
@@ -14,14 +13,13 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  packages: write
+  contents: read
 
 jobs:
   assemble:
     name: assembleDebug
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
 
     steps:
       - name: Checkout
@@ -32,33 +30,65 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
-          cache: gradle
 
-      - name: Install NDK 27.2
+      # Install the SDK platform and the exact NDK AGP expects. sdkmanager is the
+      # supported route; the action's `ndk-version` input does not exist.
+      - name: Install Android SDK and NDK
         uses: android-actions/setup-android@v3
         with:
-          ndk-version: "27.2.12479018"
+          packages: |
+            platforms;android-36
+            build-tools;36.0.0
+            ndk;27.2.12479018
+            cmake;3.22.1
 
-      - name: Setup Gradle
+      - name: Verify NDK
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          ls "$ANDROID_HOME/ndk"
+          test -d "$ANDROID_HOME/ndk/27.2.12479018"
+
+      # No gradle wrapper is committed, so use the Gradle action's distribution.
+      - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.3.1"
 
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
+      # The repo's debug signing config points at <root>/debug.keystore, which is
+      # gitignored. Generate it so packageDebug can sign.
+      - name: Generate debug keystore
+        run: |
+          keytool -genkeypair -v \
+            -keystore debug.keystore \
+            -storepass android -keypass android \
+            -alias androiddebugkey \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
 
-      - name: Build Debug APK
-        run: ./gradlew :app:assembleDebug
-        env:
-          # Prevent the secrets plugin from failing the CI build when .env is missing
-          SECRETS_PLUGIN_FAIL_ON_MISSING_FILES: "false"
+      - name: Build debug APK
+        run: gradle :app:assembleDebug --no-daemon --stacktrace
 
-      - name: Upload Debug APK
+      - name: Show native library
+        if: always()
+        run: |
+          find app/build/intermediates -name "libharness_llama.so" -exec ls -lh {} \; || true
+
+      - name: Upload APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: androidharness-debug
           path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
           retention-days: 30
 
-      - name: Print APK size
-        run: |
-          APK=app/build/outputs/apk/debug/app-debug.apk
-          echo "APK: $(du -h $APK | cut -f1)"
+      - name: Upload build logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            app/build/outputs/logs/**
+            build/reports/**
+          if-no-files-found: ignore
+          retention-days: 7
