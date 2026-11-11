@@ -1,6 +1,6 @@
 # Build the on-device APK with NDK 27.2
 #
-# Compiles llama.cpp (fetched at build time by CMake) into libharness_llama.so,
+# Compiles llama.cpp (fetched by CMake at build time) into libharness_llama.so,
 # packages it with the Kotlin code, and uploads an installable debug APK.
 #
 # Download: Actions run page -> Artifacts -> "androidharness-debug".
@@ -31,31 +31,38 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      # Install the SDK platform and the exact NDK AGP expects. sdkmanager is the
-      # supported route; the action's `ndk-version` input does not exist.
-      - name: Install Android SDK and NDK
-        uses: android-actions/setup-android@v3
-        with:
-          packages: |
-            platforms;android-36
-            build-tools;36.0.0
-            ndk;27.2.12479018
-            cmake;3.22.1
-
-      - name: Verify NDK
+      # The ubuntu runner already ships an Android SDK with cmdline-tools, so use
+      # sdkmanager directly. No third-party setup action in the path.
+      - name: Install NDK and SDK packages
+        shell: bash
         run: |
-          echo "ANDROID_HOME=$ANDROID_HOME"
-          ls "$ANDROID_HOME/ndk"
-          test -d "$ANDROID_HOME/ndk/27.2.12479018"
+          set -x
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "ANDROID_HOME=$SDK"
+          export ANDROID_HOME="$SDK"
+          export ANDROID_SDK_ROOT="$SDK"
+          SDKMANAGER="$SDK/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER="$(find "$SDK" -name sdkmanager -type f | head -n 1)"
+          fi
+          echo "sdkmanager=$SDKMANAGER"
+          "$SDKMANAGER" --version
+          yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
+          "$SDKMANAGER" --install \
+            "platforms;android-36" \
+            "build-tools;36.0.0" \
+            "cmake;3.22.1" \
+            "ndk;27.2.12479018"
+          echo "--- installed ndk ---"
+          ls -1 "$SDK/ndk"
+          test -d "$SDK/ndk/27.2.12479018"
 
-      # No gradle wrapper is committed, so use the Gradle action's distribution.
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "9.3.1"
 
-      # The repo's debug signing config points at <root>/debug.keystore, which is
-      # gitignored. Generate it so packageDebug can sign.
+      # debug.keystore is gitignored but the debug signing config requires it.
       - name: Generate debug keystore
         run: |
           keytool -genkeypair -v \
@@ -68,10 +75,10 @@ jobs:
       - name: Build debug APK
         run: gradle :app:assembleDebug --no-daemon --stacktrace
 
-      - name: Show native library
+      - name: Show native libraries
         if: always()
         run: |
-          find app/build/intermediates -name "libharness_llama.so" -exec ls -lh {} \; || true
+          find app/build -name "*.so" -exec ls -lh {} \; || echo "no .so produced"
 
       - name: Upload APK
         if: success()
@@ -82,13 +89,14 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Upload build logs
+      - name: Upload logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: build-logs
           path: |
-            app/build/outputs/logs/**
-            build/reports/**
+            **/build/outputs/logs/**
+            **/build/reports/**
+            /tmp/*.log
           if-no-files-found: ignore
           retention-days: 7
