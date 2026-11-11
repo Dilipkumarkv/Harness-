@@ -3,7 +3,7 @@
 # Compiles llama.cpp (fetched by CMake at build time) into libharness_llama.so,
 # packages it with the Kotlin code, and uploads an installable debug APK.
 #
-# Download: Actions run page -> Artifacts -> "androidharness-debug".
+# Download: Actions run page → Artifacts → "androidharness-debug".
 
 name: Build AndroidHarness (on-device llama.cpp)
 
@@ -31,31 +31,41 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      # The ubuntu runner already ships an Android SDK with cmdline-tools, so use
-      # sdkmanager directly. No third-party setup action in the path.
+      # Ubuntu runners ship Android SDK but the path varies. Install NDK + SDK
+      # using the sdkmanager that is already on the runner, no third-party
+      # action in the path. Guard against licence prompts with `yes |`.
       - name: Install NDK and SDK packages
         shell: bash
         run: |
+          set -euo pipefail
           set -x
+          # Find the sdkmanager that the runner provides.
           SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
-          echo "ANDROID_HOME=$SDK"
+          if [ ! -d "$SDK" ]; then
+            echo "Android SDK not found at $SDK" >&2
+            exit 1
+          fi
           export ANDROID_HOME="$SDK"
           export ANDROID_SDK_ROOT="$SDK"
-          SDKMANAGER="$SDK/cmdline-tools/latest/bin/sdkmanager"
-          if [ ! -x "$SDKMANAGER" ]; then
-            SDKMANAGER="$(find "$SDK" -name sdkmanager -type f | head -n 1)"
+          SDKMANAGER="$(find "$SDK" -name sdkmanager -type f -executable | head -n 1)"
+          if [ -z "$SDKMANAGER" ]; then
+            echo "sdkmanager not found under $SDK" >&2
+            exit 1
           fi
-          echo "sdkmanager=$SDKMANAGER"
-          "$SDKMANAGER" --version
-          yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
-          # `yes |` also guards the install: sdkmanager can prompt for a licence
-          # mid-install and would otherwise block until the job timeout.
+          echo "Using sdkmanager: $SDKMANAGER"
+          echo "SDK root: $SDK"
+
+          # Accept all licences non-interactively, then install.
+          # The `yes |` guards both --licenses and --install (sdkmanager can
+          # prompt mid-install for individual package licences).
+          yes | "$SDKMANAGER" --sdk_root="$SDK" --licenses > /dev/null 2>&1 || true
           yes | "$SDKMANAGER" --sdk_root="$SDK" --install \
             "platforms;android-36" \
             "build-tools;36.0.0" \
             "cmake;3.22.1" \
             "ndk;27.2.12479018"
-          echo "--- installed ndk ---"
+
+          echo "--- verifying NDK ---"
           ls -1 "$SDK/ndk"
           test -d "$SDK/ndk/27.2.12479018"
 
