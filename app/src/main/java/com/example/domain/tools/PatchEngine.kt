@@ -149,8 +149,8 @@ object PatchEngine {
                 line.startsWith("@@") -> {
                     val h = parseHunkHeader(line)
                     if (h != null) {
-                        oldLine = h.first
-                        newLine = h.second
+                        oldLine = h.oldStart
+                        newLine = h.newStart
                     }
                     out.add(DiffLine(DiffLineType.HEADER, line))
                 }
@@ -163,6 +163,9 @@ object PatchEngine {
                     oldLine++
                 }
                 line.startsWith("\\") -> out.add(DiffLine(DiffLineType.HEADER, line))
+                // git diff metadata (diff --git, index, new file mode, Binary files, …) is not
+                // content — render it as a header and do not advance the line counters.
+                isDiffMetadata(line) -> out.add(DiffLine(DiffLineType.HEADER, line))
                 else -> {
                     out.add(DiffLine(DiffLineType.UNCHANGED, line, oldLine, newLine))
                     oldLine++
@@ -181,24 +184,26 @@ object PatchEngine {
     fun parseHunks(patchText: String): List<Hunk> {
         val hunks = mutableListOf<Hunk>()
         var current: MutableList<String>? = null
-        var header: Triple<Int, Int, Int>? = null // oldStart, oldCount, newStart
+        var oldRemaining = 0
+        var newRemaining = 0
+        var oldStart = 0
+        var oldCount = 0
+        var newStart = 0
 
         fun flush() {
             val lines = current
-            val h = header
-            if (lines != null && h != null) {
+            if (lines != null) {
                 hunks.add(
                     Hunk(
-                        oldStart = h.first,
-                        oldCount = h.second,
-                        newStart = h.third,
+                        oldStart = oldStart,
+                        oldCount = oldCount,
+                        newStart = newStart,
                         newCount = lines.count { it.startsWith(" ") || it.startsWith("+") },
                         lines = lines.toList()
                     )
                 )
             }
             current = null
-            header = null
         }
 
         for (raw in patchText.split("\n")) {
@@ -208,16 +213,46 @@ object PatchEngine {
                     flush()
                     val h = parseHunkHeader(line)
                     if (h == null) return emptyList()
-                    header = Triple(h.first, h.second, h.third)
+                    oldStart = h.oldStart
+                    oldCount = h.oldCount
+                    newStart = h.newStart
+                    oldRemaining = h.oldCount
+                    newRemaining = h.newCount
                     current = mutableListOf()
                 }
-                header == null -> Unit // still in the file header preamble
+                current == null -> Unit // still in the file header preamble
                 line.startsWith("\\") -> Unit // "No newline at end of file"
                 line.startsWith("+") || line.startsWith("-") || line.startsWith(" ") -> {
+                    // Only consume as hunk content while the header's line budget lasts;
+                    // anything after that is the next file's header, not this hunk's code.
+                    if (oldRemaining <= 0 && newRemaining <= 0) {
+                        flush()
+                        current = null
+                        continue
+                    }
                     current?.add(line)
+                    if (line.startsWith(" ")) { oldRemaining--; newRemaining-- }
+                    else if (line.startsWith("-")) oldRemaining--
+                    else newRemaining--
+                    if (oldRemaining <= 0 && newRemaining <= 0) {
+                        // Hunk complete; a following header must not be swallowed into it.
+                        flush()
+                    }
                 }
-                line.isEmpty() -> current?.add(" ") // tolerate trimmed trailing whitespace
-                else -> Unit
+                line.isEmpty() -> {
+                    // Tolerate trimmed trailing whitespace on context lines.
+                    if (oldRemaining > 0 || newRemaining > 0) {
+                        current?.add(" ")
+                        oldRemaining--; newRemaining--
+                        if (oldRemaining <= 0 && newRemaining <= 0) flush()
+                    }
+                }
+                else -> {
+                    // Anything else (e.g. "diff --git", "index …", "--- a/…", "+++ b/…") ends the hunk.
+                    if (current != null) {
+                        flush()
+                    }
+                }
             }
         }
         flush()
@@ -329,14 +364,33 @@ object PatchEngine {
             !patchText.contains(NO_NEWLINE_MARKER)
         }
 
-    /** Returns (oldStart, oldCount, newStart) from a `@@ -a,b +c,d @@` header. */
-    private fun parseHunkHeader(line: String): Triple<Int, Int, Int>? {
+    private fun isDiffMetadata(line: String): Boolean =
+        line.startsWith("diff --git") ||
+            line.startsWith("index ") ||
+            line.startsWith("new file mode") ||
+            line.startsWith("deleted file mode") ||
+            line.startsWith("old mode") ||
+            line.startsWith("new mode") ||
+            line.startsWith("similarity index") ||
+            line.startsWith("dissimilarity index") ||
+            line.startsWith("rename from") ||
+            line.startsWith("rename to") ||
+            line.startsWith("copy from") ||
+            line.startsWith("copy to") ||
+            line.startsWith("Binary files") ||
+            line.startsWith("GIT binary patch")
+
+    /** Returns (oldStart, oldCount, newStart, newCount) from a `@@ -a,b +c,d @@` header. */
+    private data class HunkHeader(val oldStart: Int, val oldCount: Int, val newStart: Int, val newCount: Int)
+
+    private fun parseHunkHeader(line: String): HunkHeader? {
         val match = Regex("@@\\s*-(\\d+)(?:,(\\d+))?\\s*\\+(\\d+)(?:,(\\d+))?\\s*@@").find(line)
             ?: return null
         val oldStart = match.groupValues[1].toIntOrNull() ?: return null
         val oldCount = match.groupValues[2].toIntOrNull() ?: 1
         val newStart = match.groupValues[3].toIntOrNull() ?: return null
-        return Triple(oldStart, oldCount, newStart)
+        val newCount = match.groupValues[4].toIntOrNull() ?: 1
+        return HunkHeader(oldStart, oldCount, newStart, newCount)
     }
 
     /** Pure insertion before any existing line (new file, or `-0,0` hunks). */

@@ -49,15 +49,12 @@ import com.example.ui.screens.GitDiffsScreen
 import com.example.ui.screens.ProjectFilesScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.theme.OceanAqua
-import com.example.ui.theme.OceanBorder
 import com.example.ui.theme.OceanDark700
 import com.example.ui.theme.OceanDark800
-import com.example.ui.theme.OceanDark900
 import com.example.ui.theme.OceanIceSky
 import com.example.ui.theme.OceanIceWhite
 import com.example.ui.theme.OceanMuted
 import com.example.ui.theme.OceanSteel
-import com.example.ui.theme.OceanWarning
 import com.example.ui.viewmodel.HarnessViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)

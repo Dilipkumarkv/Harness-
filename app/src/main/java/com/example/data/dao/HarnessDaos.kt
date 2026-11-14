@@ -50,6 +50,13 @@ interface MessagesDao {
 
 @Dao
 interface ToolCallsDao {
+    @Query("DELETE FROM tool_calls WHERE messageId = :messageId")
+    suspend fun deleteToolCallsForMessage(messageId: String)
+
+    /** Deletes tool calls whose parent messages belong to [sessionId]. Call before clearing the session. */
+    @Query("DELETE FROM tool_calls WHERE messageId IN (SELECT id FROM messages WHERE sessionId = :sessionId)")
+    suspend fun deleteToolCallsForSession(sessionId: String)
+
     @Query("SELECT * FROM tool_calls WHERE messageId = :messageId ORDER BY createdAt ASC")
     fun getToolCallsForMessage(messageId: String): Flow<List<ToolCallEntity>>
 

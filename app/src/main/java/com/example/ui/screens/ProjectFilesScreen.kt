@@ -3,8 +3,10 @@ package com.example.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,12 +18,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -48,16 +53,17 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.entity.WorkspaceFileEntity
 import com.example.ui.components.CodeViewer
-import com.example.ui.theme.CyberSky
-import com.example.ui.theme.NeonEmerald
-import com.example.ui.theme.SlateDark600
-import com.example.ui.theme.SlateDark700
-import com.example.ui.theme.SlateDark800
-import com.example.ui.theme.SlateDark900
-import com.example.ui.theme.SlateLight
-import com.example.ui.theme.SlateMuted
-import com.example.ui.theme.SlateWhite
+import com.example.ui.theme.OceanAqua
+import com.example.ui.theme.OceanBorder
+import com.example.ui.theme.OceanDark700
+import com.example.ui.theme.OceanDark800
+import com.example.ui.theme.OceanDark900
+import com.example.ui.theme.OceanIceSky
+import com.example.ui.theme.OceanIceWhite
+import com.example.ui.theme.OceanMuted
 import com.example.ui.viewmodel.HarnessViewModel
+
+private const val WIDE_SCREEN_MIN_WIDTH = 700
 
 @Composable
 fun ProjectFilesScreen(
@@ -69,162 +75,90 @@ fun ProjectFilesScreen(
 
     var searchQuery by remember { mutableStateOf("") }
     var showCreateDialog by remember { mutableStateOf(false) }
+    // Single-pane mode: which side of the explorer/viewer to show.
+    var viewerVisible by remember { mutableStateOf(false) }
 
     val filteredFiles = remember(files, searchQuery) {
         if (searchQuery.isBlank()) files else files.filter { it.path.contains(searchQuery, ignoreCase = true) }
     }
 
-    Row(
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
-            .background(SlateDark900)
+            .background(OceanDark900)
     ) {
-        // Left Column: File Explorer
-        Column(
-            modifier = Modifier
-                .width(280.dp)
-                .fillMaxSize()
-                .background(SlateDark800)
-                .border(1.dp, SlateDark600)
-        ) {
-            // Header with search & add
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Folder,
-                        contentDescription = null,
-                        tint = NeonEmerald,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "EXPLORER",
-                        color = SlateWhite,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp,
-                        letterSpacing = 1.sp
-                    )
-                }
+        val wide = maxWidth >= WIDE_SCREEN_MIN_WIDTH.dp
 
-                IconButton(
-                    onClick = { showCreateDialog = true },
+        if (wide) {
+            Row(modifier = Modifier.fillMaxSize()) {
+                FileExplorerPane(
+                    files = filteredFiles,
+                    selectedFile = selectedFile,
+                    searchQuery = searchQuery,
+                    onSearchChange = { searchQuery = it },
+                    onFileClick = viewModel::selectFile,
+                    onCreateClick = { showCreateDialog = true },
                     modifier = Modifier
-                        .size(28.dp)
-                        .background(NeonEmerald.copy(alpha = 0.15f), RoundedCornerShape(4.dp))
-                        .testTag("create_file_button")
+                        .width(300.dp)
+                        .fillMaxSize()
+                )
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxSize()
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "New File",
-                        tint = NeonEmerald,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-            }
-
-            // Search filter
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
-                placeholder = { Text("Filter files...", color = SlateMuted, fontSize = 11.sp) },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = SlateMuted, modifier = Modifier.size(14.dp)) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 10.dp, vertical = 4.dp),
-                shape = RoundedCornerShape(8.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = NeonEmerald,
-                    unfocusedBorderColor = SlateDark600,
-                    focusedContainerColor = SlateDark900,
-                    unfocusedContainerColor = SlateDark900,
-                    focusedTextColor = SlateWhite,
-                    unfocusedTextColor = SlateWhite
-                ),
-                singleLine = true
-            )
-
-            // File items list
-            LazyColumn(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp)
-            ) {
-                items(filteredFiles, key = { it.id }) { file ->
-                    val isSelected = file.id == selectedFile?.id
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(if (isSelected) SlateDark700 else Color.Transparent)
-                            .clickable { viewModel.selectFile(file) }
-                            .padding(horizontal = 10.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = when {
-                                file.path.endsWith(".kt") -> Icons.Default.Code
-                                else -> Icons.Default.Description
+                    val current = selectedFile
+                    if (current != null) {
+                        CodeViewer(
+                            file = current,
+                            onSendToAgent = { prompt ->
+                                viewModel.selectTab(0)
+                                viewModel.sendPrompt(prompt)
                             },
-                            contentDescription = null,
-                            tint = if (isSelected) NeonEmerald else CyberSky,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Column {
-                            Text(
-                                text = file.path.substringAfterLast('/'),
-                                color = if (isSelected) NeonEmerald else SlateWhite,
-                                fontSize = 12.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                fontFamily = FontFamily.Monospace
-                            )
-                            val dir = file.path.substringBeforeLast('/', "")
-                            if (dir.isNotBlank()) {
-                                Text(
-                                    text = dir,
-                                    color = SlateMuted,
-                                    fontSize = 10.sp,
-                                    fontFamily = FontFamily.Monospace,
-                                    maxLines = 1
+                            breadcrumbBar = {
+                                Breadcrumb(
+                                    path = current.path,
+                                    onNavigate = { searchQuery = it }
                                 )
                             }
-                        }
+                        )
+                    } else {
+                        EmptyCodePane()
                     }
                 }
             }
-        }
-
-        // Right Column: Code Viewer
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxSize()
-        ) {
-            if (selectedFile != null) {
+        } else {
+            // Phone/compact: single pane with a back arrow in the viewer.
+            val current = selectedFile
+            if (viewerVisible && current != null) {
                 CodeViewer(
-                    file = selectedFile!!,
+                    file = current,
                     onSendToAgent = { prompt ->
-                        viewModel.selectTab(0) // Switch to Agent Workspace
+                        viewModel.selectTab(0)
                         viewModel.sendPrompt(prompt)
-                    }
+                    },
+                    breadcrumbBar = {
+                        Breadcrumb(
+                            path = current.path,
+                            onBack = { viewerVisible = false },
+                            onNavigate = { searchQuery = it }
+                        )
+                    },
+                    modifier = Modifier.fillMaxSize()
                 )
             } else {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "Select a file to inspect",
-                        color = SlateMuted,
-                        fontSize = 14.sp
-                    )
-                }
+                FileExplorerPane(
+                    files = filteredFiles,
+                    selectedFile = selectedFile,
+                    searchQuery = searchQuery,
+                    onSearchChange = { searchQuery = it },
+                    onFileClick = {
+                        viewModel.selectFile(it)
+                        viewerVisible = true
+                    },
+                    onCreateClick = { showCreateDialog = true },
+                    modifier = Modifier.fillMaxSize()
+                )
             }
         }
     }
@@ -236,7 +170,7 @@ fun ProjectFilesScreen(
 
         AlertDialog(
             onDismissRequest = { showCreateDialog = false },
-            title = { Text("Create New Workspace File", color = SlateWhite, fontSize = 16.sp, fontWeight = FontWeight.Bold) },
+            title = { Text("Create New Workspace File", color = OceanIceWhite, fontSize = 16.sp, fontWeight = FontWeight.Bold) },
             text = {
                 Column {
                     OutlinedTextField(
@@ -246,10 +180,10 @@ fun ProjectFilesScreen(
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = NeonEmerald,
-                            unfocusedBorderColor = SlateDark600,
-                            focusedTextColor = SlateWhite,
-                            unfocusedTextColor = SlateWhite
+                            focusedBorderColor = OceanIceSky,
+                            unfocusedBorderColor = OceanBorder,
+                            focusedTextColor = OceanIceWhite,
+                            unfocusedTextColor = OceanIceWhite
                         )
                     )
                     Spacer(modifier = Modifier.height(10.dp))
@@ -261,10 +195,10 @@ fun ProjectFilesScreen(
                             .fillMaxWidth()
                             .height(140.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = NeonEmerald,
-                            unfocusedBorderColor = SlateDark600,
-                            focusedTextColor = SlateWhite,
-                            unfocusedTextColor = SlateWhite
+                            focusedBorderColor = OceanIceSky,
+                            unfocusedBorderColor = OceanBorder,
+                            focusedTextColor = OceanIceWhite,
+                            unfocusedTextColor = OceanIceWhite
                         )
                     )
                 }
@@ -277,17 +211,212 @@ fun ProjectFilesScreen(
                             showCreateDialog = false
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = NeonEmerald)
+                    colors = ButtonDefaults.buttonColors(containerColor = OceanIceSky)
                 ) {
                     Text("Create", color = Color(0xFF0D1117), fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showCreateDialog = false }) {
-                    Text("Cancel", color = SlateMuted)
+                    Text("Cancel", color = OceanMuted)
                 }
             },
-            containerColor = SlateDark800
+            containerColor = OceanDark800
+        )
+    }
+}
+
+@Composable
+private fun FileExplorerPane(
+    files: List<WorkspaceFileEntity>,
+    selectedFile: WorkspaceFileEntity?,
+    searchQuery: String,
+    onSearchChange: (String) -> Unit,
+    onFileClick: (WorkspaceFileEntity) -> Unit,
+    onCreateClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .background(OceanDark800)
+            .border(1.dp, OceanBorder)
+    ) {
+        // Header with search & add
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Folder,
+                    contentDescription = null,
+                    tint = OceanIceSky,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "EXPLORER",
+                    color = OceanIceWhite,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp,
+                    letterSpacing = 1.sp
+                )
+            }
+
+            IconButton(
+                onClick = onCreateClick,
+                modifier = Modifier
+                    .size(28.dp)
+                    .background(OceanIceSky.copy(alpha = 0.15f), RoundedCornerShape(4.dp))
+                    .testTag("create_file_button")
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "New File",
+                    tint = OceanIceSky,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+
+        // Search filter
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = onSearchChange,
+            placeholder = { Text("Filter files...", color = OceanMuted, fontSize = 11.sp) },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = OceanMuted, modifier = Modifier.size(14.dp)) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 4.dp),
+            shape = RoundedCornerShape(8.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = OceanIceSky,
+                unfocusedBorderColor = OceanBorder,
+                focusedContainerColor = OceanDark900,
+                unfocusedContainerColor = OceanDark900,
+                focusedTextColor = OceanIceWhite,
+                unfocusedTextColor = OceanIceWhite
+            ),
+            singleLine = true
+        )
+
+        // File items list
+        LazyColumn(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(vertical = 4.dp)
+        ) {
+            items(files, key = { it.id }) { file ->
+                val isSelected = file.id == selectedFile?.id
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(if (isSelected) OceanDark700 else Color.Transparent)
+                        .clickable { onFileClick(file) }
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = when {
+                            file.path.endsWith(".kt") -> Icons.Default.Code
+                            else -> Icons.Default.Description
+                        },
+                        contentDescription = null,
+                        tint = if (isSelected) OceanIceSky else OceanAqua,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column {
+                        Text(
+                            text = file.path.substringAfterLast('/'),
+                            color = if (isSelected) OceanIceSky else OceanIceWhite,
+                            fontSize = 12.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            fontFamily = FontFamily.Monospace
+                        )
+                        val dir = file.path.substringBeforeLast('/', "")
+                        if (dir.isNotBlank()) {
+                            Text(
+                                text = dir,
+                                color = OceanMuted,
+                                fontSize = 10.sp,
+                                fontFamily = FontFamily.Monospace,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun Breadcrumb(
+    path: String,
+    onNavigate: (String) -> Unit,
+    onBack: (() -> Unit)? = null
+) {
+    val segments = path.split('/').filter { it.isNotBlank() }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .background(OceanDark800)
+            .padding(horizontal = 8.dp, vertical = 6.dp)
+    ) {
+        if (onBack != null) {
+            IconButton(onClick = onBack, modifier = Modifier.size(32.dp)) {
+                Icon(
+                    imageVector = Icons.Default.ArrowBack,
+                    contentDescription = "Back to file list",
+                    tint = OceanIceSky,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(2.dp))
+        }
+        segments.forEachIndexed { index, segment ->
+            val isLast = index == segments.lastIndex
+            Text(
+                text = segment,
+                color = if (isLast) OceanIceWhite else OceanIceSky,
+                fontSize = 12.sp,
+                fontWeight = if (isLast) FontWeight.Bold else FontWeight.Normal,
+                fontFamily = FontFamily.Monospace,
+                modifier = if (isLast) {
+                    Modifier
+                } else {
+                    Modifier.clickable { onNavigate(segments.take(index + 1).joinToString("/") + "/") }
+                }
+            )
+            if (!isLast) {
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = OceanMuted,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmptyCodePane() {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "Select a file to inspect",
+            color = OceanMuted,
+            fontSize = 14.sp
         )
     }
 }

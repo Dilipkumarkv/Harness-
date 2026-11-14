@@ -185,7 +185,7 @@ class HarnessToolRegistry(
             )
         }
         val content = workspace.readText(path)
-        val lines = content.count { it == '\n' } + if (content.isEmpty()) 0 else 1
+        val lines = lineCount(content)
         val body = if (content.isEmpty()) "(empty file)" else content
         return ExecutionResult(
             status = ToolCallStatus.SUCCESS,
@@ -208,7 +208,7 @@ class HarnessToolRegistry(
         val diff = PatchEngine.computeDiff(oldContent, content, path)
         val added = diff.count { it.type == DiffLineType.ADDED }
         val removed = diff.count { it.type == DiffLineType.REMOVED }
-        val lineCount = content.count { it == '\n' } + if (content.isEmpty()) 0 else 1
+        val totalLines = lineCount(content)
 
         return ExecutionResult(
             status = ToolCallStatus.SUCCESS,
@@ -216,7 +216,7 @@ class HarnessToolRegistry(
                 append(if (info.created) "Created " else "Updated ")
                 append(path)
                 append("\n  ")
-                append(lineCount)
+                append(totalLines)
                 append(" lines, ")
                 append(info.bytes)
                 append(" bytes")
@@ -241,8 +241,8 @@ class HarnessToolRegistry(
                 indexFile(path, result.content)
 
                 val diff = PatchEngine.computeDiff(original, result.content, path)
-                val before = original.count { it == '\n' } + if (original.isEmpty()) 0 else 1
-                val after = result.content.count { it == '\n' } + if (result.content.isEmpty()) 0 else 1
+                val before = lineCount(original)
+                val after = lineCount(result.content)
 
                 val detail = buildString {
                     if (result.hunksApplied == 0) {
@@ -744,8 +744,11 @@ class HarnessToolRegistry(
     }
 
     private fun fileId(projectId: String, path: String): String {
-        val hash = path.hashCode().toLong().let { if (it < 0) -it else it }
-        return "file_${projectId}_$hash"
+        // Stable 128-bit identity for (project, path). A 32-bit hashCode here could collide and
+        // make Room REPLACE quietly destroy a different file's index row.
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+            .digest("$projectId/$path".toByteArray(Charsets.UTF_8))
+        return "file_" + digest.take(16).joinToString("") { "%02x".format(it) }
     }
 
     // ---------------------------------------------------------------------------------------
@@ -753,6 +756,10 @@ class HarnessToolRegistry(
     // ---------------------------------------------------------------------------------------
 
     private fun error(message: String): ExecutionResult = ExecutionResult(ToolCallStatus.ERROR, message)
+
+    /** Logical line count: empty file = 0, trailing newline does not add a phantom line. */
+    private fun lineCount(content: String): Int =
+        if (content.isEmpty()) 0 else content.count { it == '\n' } + if (content.endsWith('\n')) 0 else 1
 
     private fun similarPaths(path: String): List<String> {
         val name = path.substringAfterLast('/')

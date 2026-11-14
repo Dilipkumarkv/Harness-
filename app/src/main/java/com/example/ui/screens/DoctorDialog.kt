@@ -42,15 +42,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.ui.theme.CyberAmber
-import com.example.ui.theme.NeonEmerald
-import com.example.ui.theme.SlateDark600
-import com.example.ui.theme.SlateDark700
-import com.example.ui.theme.SlateDark800
-import com.example.ui.theme.SlateDark900
-import com.example.ui.theme.SlateLight
-import com.example.ui.theme.SlateMuted
-import com.example.ui.theme.SlateWhite
+import com.example.ui.theme.OceanWarning
+import com.example.ui.theme.OceanIceSky
+import com.example.ui.theme.OceanBorder
+import com.example.ui.theme.OceanDark700
+import com.example.ui.theme.OceanDark800
+import com.example.ui.theme.OceanDark900
+import com.example.ui.theme.OceanIceSky
+import com.example.ui.theme.OceanMuted
+import com.example.ui.theme.OceanIceWhite
 import com.example.ui.viewmodel.HarnessViewModel
 
 @Composable
@@ -79,20 +79,20 @@ fun DoctorDialog(
                     Icon(
                         imageVector = Icons.Default.MedicalServices,
                         contentDescription = null,
-                        tint = CyberAmber,
+                        tint = OceanWarning,
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "AndroidHarness Doctor",
-                        color = SlateWhite,
+                        color = OceanIceWhite,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }
 
                 IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Default.Close, contentDescription = "Close", tint = SlateMuted)
+                    Icon(Icons.Default.Close, contentDescription = "Close", tint = OceanMuted)
                 }
             }
         },
@@ -104,7 +104,7 @@ fun DoctorDialog(
             ) {
                 Text(
                     text = "Self-test verifying real toolchain, parsers, and sandbox health:",
-                    color = SlateLight,
+                    color = OceanIceSky,
                     fontSize = 12.sp,
                     modifier = Modifier.padding(bottom = 12.dp)
                 )
@@ -117,9 +117,9 @@ fun DoctorDialog(
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        CircularProgressIndicator(color = CyberAmber, strokeWidth = 2.dp, modifier = Modifier.size(24.dp))
+                        CircularProgressIndicator(color = OceanWarning, strokeWidth = 2.dp, modifier = Modifier.size(24.dp))
                         Spacer(modifier = Modifier.width(12.dp))
-                        Text("Running diagnostic probes...", color = CyberAmber, fontSize = 13.sp)
+                        Text("Running diagnostic probes...", color = OceanWarning, fontSize = 13.sp)
                     }
                 } else {
                     LazyColumn(
@@ -130,21 +130,21 @@ fun DoctorDialog(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .background(SlateDark900, RoundedCornerShape(8.dp))
-                                    .border(1.dp, SlateDark600, RoundedCornerShape(8.dp))
+                                    .background(OceanDark900, RoundedCornerShape(8.dp))
+                                    .border(1.dp, OceanBorder, RoundedCornerShape(8.dp))
                                     .padding(10.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Box(
                                     modifier = Modifier
                                         .size(20.dp)
-                                        .background(if (test.isSuccess) NeonEmerald.copy(alpha = 0.2f) else Color.Red.copy(alpha = 0.2f), CircleShape),
+                                        .background(if (test.isSuccess) OceanIceSky.copy(alpha = 0.2f) else Color.Red.copy(alpha = 0.2f), CircleShape),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
                                         imageVector = if (test.isSuccess) Icons.Default.Check else Icons.Default.Close,
                                         contentDescription = null,
-                                        tint = if (test.isSuccess) NeonEmerald else Color.Red,
+                                        tint = if (test.isSuccess) OceanIceSky else Color.Red,
                                         modifier = Modifier.size(14.dp)
                                     )
                                 }
@@ -158,20 +158,20 @@ fun DoctorDialog(
                                     ) {
                                         Text(
                                             text = test.name,
-                                            color = SlateWhite,
+                                            color = OceanIceWhite,
                                             fontWeight = FontWeight.SemiBold,
                                             fontSize = 12.sp
                                         )
                                         Text(
                                             text = "${test.durationMs}ms",
-                                            color = SlateMuted,
+                                            color = OceanMuted,
                                             fontSize = 10.sp,
                                             fontFamily = FontFamily.Monospace
                                         )
                                     }
                                     Text(
                                         text = test.message,
-                                        color = if (test.isSuccess) NeonEmerald else Color.Red,
+                                        color = if (test.isSuccess) OceanIceSky else Color.Red,
                                         fontSize = 11.sp,
                                         fontFamily = FontFamily.Monospace
                                     )
@@ -186,7 +186,7 @@ fun DoctorDialog(
             Button(
                 onClick = { viewModel.runDoctorDiagnostics() },
                 enabled = !isRunning,
-                colors = ButtonDefaults.buttonColors(containerColor = CyberAmber),
+                colors = ButtonDefaults.buttonColors(containerColor = OceanWarning),
                 modifier = Modifier.testTag("retest_doctor_button")
             ) {
                 Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(14.dp))
@@ -196,9 +196,9 @@ fun DoctorDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Done", color = SlateLight)
+                Text("Done", color = OceanIceSky)
             }
         },
-        containerColor = SlateDark800
+        containerColor = OceanDark800
     )
 }

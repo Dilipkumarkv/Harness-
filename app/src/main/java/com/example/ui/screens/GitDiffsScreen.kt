@@ -18,8 +18,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Commit
 import androidx.compose.material.icons.filled.Difference
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
@@ -45,15 +47,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.ui.components.DiffViewer
-import com.example.ui.theme.CyberAmethyst
-import com.example.ui.theme.NeonEmerald
-import com.example.ui.theme.SlateDark600
-import com.example.ui.theme.SlateDark700
-import com.example.ui.theme.SlateDark800
-import com.example.ui.theme.SlateDark900
-import com.example.ui.theme.SlateLight
-import com.example.ui.theme.SlateMuted
-import com.example.ui.theme.SlateWhite
+import com.example.ui.theme.OceanSteel
+import com.example.ui.theme.OceanIceSky
+import com.example.ui.theme.OceanBorder
+import com.example.ui.theme.OceanDark700
+import com.example.ui.theme.OceanDark800
+import com.example.ui.theme.OceanDark900
+import com.example.ui.theme.OceanIceSky
+import com.example.ui.theme.OceanMuted
+import com.example.ui.theme.OceanIceWhite
 import com.example.ui.viewmodel.HarnessViewModel
 
 @Composable
@@ -66,20 +68,18 @@ fun GitDiffsScreen(
     val gitLogText by viewModel.gitLogText.collectAsStateWithLifecycle()
     val isRefreshing by viewModel.isGitRefreshing.collectAsStateWithLifecycle()
 
-    var selectedDiff by remember { mutableStateOf<String?>(null) }
-
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .background(SlateDark900)
+            .background(OceanDark900)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // Repo Overview Card (real git status)
         item {
             Card(
-                colors = CardDefaults.cardColors(containerColor = SlateDark800),
-                border = androidx.compose.foundation.BorderStroke(1.dp, SlateDark600),
+                colors = CardDefaults.cardColors(containerColor = OceanDark800),
+                border = androidx.compose.foundation.BorderStroke(1.dp, OceanBorder),
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -93,13 +93,13 @@ fun GitDiffsScreen(
                             Icon(
                                 imageVector = Icons.Default.Difference,
                                 contentDescription = null,
-                                tint = CyberAmethyst,
+                                tint = OceanSteel,
                                 modifier = Modifier.size(20.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = "GIT REPOSITORY STATUS",
-                                color = SlateWhite,
+                                color = OceanIceWhite,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp,
                                 letterSpacing = 1.sp
@@ -109,7 +109,7 @@ fun GitDiffsScreen(
                         Button(
                             onClick = { viewModel.refreshGit() },
                             enabled = !isRefreshing,
-                            colors = ButtonDefaults.buttonColors(containerColor = CyberAmethyst.copy(alpha = 0.3f)),
+                            colors = ButtonDefaults.buttonColors(containerColor = OceanSteel.copy(alpha = 0.3f)),
                             shape = RoundedCornerShape(8.dp)
                         ) {
                             if (isRefreshing) {
@@ -130,7 +130,7 @@ fun GitDiffsScreen(
 
                     Text(
                         text = gitStatusText.ifBlank { "(git status unavailable — is git installed?)" }.take(500),
-                        color = SlateLight,
+                        color = OceanIceSky,
                         fontSize = 11.sp,
                         fontFamily = FontFamily.Monospace,
                         modifier = Modifier
@@ -144,7 +144,7 @@ fun GitDiffsScreen(
                             viewModel.selectTab(0)
                             viewModel.sendPrompt("git status and review all uncommitted diffs")
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = CyberAmethyst),
+                        colors = ButtonDefaults.buttonColors(containerColor = OceanSteel),
                         shape = RoundedCornerShape(8.dp)
                     ) {
                         Text("Analyze Diff with Agent", color = Color(0xFF1E1136), fontWeight = FontWeight.Bold, fontSize = 12.sp)
@@ -153,42 +153,95 @@ fun GitDiffsScreen(
             }
         }
 
-        // Active Working Tree Diff (real git diff)
+        // Active Working Tree Diff (real git diff) — file-by-file expandable sections
         item {
+            val sections = remember(gitDiffText) { splitDiffSections(gitDiffText) }
+            var expandedFiles by remember { mutableStateOf(setOf<String>()) }
+
             Column {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 8.dp)
+                        .padding(bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
                         text = "ACTIVE WORKING TREE DIFF",
-                        color = NeonEmerald,
+                        color = OceanIceSky,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.sp
                     )
                     Spacer(modifier = Modifier.weight(1f))
-                    Box(
-                        modifier = Modifier
-                            .background(if (selectedDiff == null) NeonEmerald.copy(alpha = 0.2f) else SlateDark700, RoundedCornerShape(8.dp))
-                            .border(1.dp, if (selectedDiff == null) NeonEmerald else SlateDark600, RoundedCornerShape(8.dp))
-                            .clickable { selectedDiff = null }
-                            .padding(horizontal = 10.dp, vertical = 4.dp)
-                    ) {
+                    if (sections.isNotEmpty()) {
                         Text(
-                            text = "Working Tree",
-                            color = if (selectedDiff == null) NeonEmerald else SlateLight,
+                            text = "${sections.size} file(s) changed",
+                            color = OceanMuted,
                             fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
                             fontFamily = FontFamily.Monospace
                         )
                     }
-                    Spacer(modifier = Modifier.width(6.dp))
-                    // Future: staged diff toggle here.
                 }
 
-                DiffViewer(diffContent = gitDiffText.ifBlank { "" })
+                if (sections.isEmpty()) {
+                    Text(
+                        text = "No tracked modifications. Untracked files appear under git status, not git diff.",
+                        color = OceanMuted,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    )
+                } else {
+                    sections.forEach { section ->
+                        val isExpanded = section.filePath in expandedFiles
+                        val added = section.content.lineSequence().count { it.startsWith("+") && !it.startsWith("+++") }
+                        val removed = section.content.lineSequence().count { it.startsWith("-") && !it.startsWith("---") }
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    expandedFiles = if (isExpanded) expandedFiles - section.filePath
+                                    else expandedFiles + section.filePath
+                                }
+                                .padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = if (isExpanded) Icons.Default.ExpandMore else Icons.Default.ChevronRight,
+                                contentDescription = if (isExpanded) "Collapse diff" else "Expand diff",
+                                tint = OceanIceSky,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = section.filePath,
+                                color = OceanIceWhite,
+                                fontSize = 12.sp,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Text(
+                                text = "+$added",
+                                color = com.example.ui.theme.OceanSuccess,
+                                fontSize = 11.sp,
+                                fontFamily = FontFamily.Monospace
+                            )
+                            Text(
+                                text = "  −$removed",
+                                color = com.example.ui.theme.OceanError,
+                                fontSize = 11.sp,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                        if (isExpanded) {
+                            DiffViewer(
+                                diffContent = section.content,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                        }
+                    }
+                }
             }
         }
 
@@ -202,13 +255,13 @@ fun GitDiffsScreen(
                     Icon(
                         imageVector = Icons.Default.History,
                         contentDescription = null,
-                        tint = SlateMuted,
+                        tint = OceanMuted,
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = "RECENT COMMITS",
-                        color = SlateMuted,
+                        color = OceanMuted,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.sp
@@ -219,7 +272,7 @@ fun GitDiffsScreen(
                 if (logLines.isEmpty()) {
                     Text(
                         text = "No commits yet — initialise git and make a commit.",
-                        color = SlateMuted,
+                        color = OceanMuted,
                         fontSize = 12.sp,
                         fontFamily = FontFamily.Monospace,
                         modifier = Modifier.padding(vertical = 8.dp)
@@ -244,6 +297,35 @@ fun GitDiffsScreen(
     }
 }
 
+private data class DiffSection(val filePath: String, val content: String)
+
+/** Splits a `git diff` into one section per file, keyed on `diff --git` boundaries. */
+private fun splitDiffSections(diff: String): List<DiffSection> {
+    if (diff.isBlank()) return emptyList()
+    val sections = mutableListOf<DiffSection>()
+    var currentPath = ""
+    var current = StringBuilder()
+
+    fun flush() {
+        if (current.isNotEmpty()) {
+            sections.add(DiffSection(currentPath.ifBlank { "(unknown)" }, current.toString().trimEnd()))
+        }
+        current = StringBuilder()
+    }
+
+    for (line in diff.split("\n")) {
+        if (line.startsWith("diff --git ")) {
+            flush()
+            // Prefer the b/ side (the new path); fall back to whatever is there.
+            val fromB = line.substringAfter(" b/", "").trim()
+            currentPath = fromB.ifBlank { line.removePrefix("diff --git ").trim() }
+        }
+        current.appendLine(line)
+    }
+    flush()
+    return sections
+}
+
 @Composable
 fun CommitItem(
     hash: String,
@@ -252,8 +334,8 @@ fun CommitItem(
     timeAgo: String
 ) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = SlateDark800),
-        border = androidx.compose.foundation.BorderStroke(1.dp, SlateDark600),
+        colors = CardDefaults.cardColors(containerColor = OceanDark800),
+        border = androidx.compose.foundation.BorderStroke(1.dp, OceanBorder),
         shape = RoundedCornerShape(8.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -266,14 +348,14 @@ fun CommitItem(
             Icon(
                 imageVector = Icons.Default.Commit,
                 contentDescription = null,
-                tint = NeonEmerald,
+                tint = OceanIceSky,
                 modifier = Modifier.size(18.dp)
             )
             Spacer(modifier = Modifier.width(10.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = msg,
-                    color = SlateWhite,
+                    color = OceanIceWhite,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -281,21 +363,21 @@ fun CommitItem(
                     Row(modifier = Modifier.padding(top = 2.dp)) {
                         Text(
                             text = hash,
-                            color = CyberAmethyst,
+                            color = OceanSteel,
                             fontSize = 11.sp,
                             fontFamily = FontFamily.Monospace
                         )
                         if (author.isNotBlank()) {
                             Text(
                                 text = " • $author",
-                                color = SlateMuted,
+                                color = OceanMuted,
                                 fontSize = 11.sp
                             )
                         }
                         if (timeAgo.isNotBlank()) {
                             Text(
                                 text = " • $timeAgo",
-                                color = SlateMuted,
+                                color = OceanMuted,
                                 fontSize = 11.sp
                             )
                         }

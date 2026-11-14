@@ -43,13 +43,98 @@ bool decode_range(llama_context *ctx, const llama_token *tokens, int32_t n, int3
     return rc == 0;
 }
 
+// Java strings are UTF-16; llama.cpp works in UTF-8. NewStringUTF/GetStringUTFChars use
+// *modified* UTF-8, which corrupts astral-plane characters (emoji, CJK ext), so we convert
+// through UTF-16 explicitly in both directions. Invalid input decodes to U+FFFD.
+constexpr char16_t kReplacement = 0xFFFD;
+
+std::u16string utf8_to_utf16(const std::string &s) {
+    std::u16string out;
+    out.reserve(s.size());
+    for (size_t i = 0; i < s.size();) {
+        const auto c = static_cast<unsigned char>(s[i]);
+        uint32_t cp = 0;
+        size_t extra = 0;
+        if (c < 0x80) { cp = c; extra = 0; }
+        else if ((c & 0xE0) == 0xC0) { cp = c & 0x1F; extra = 1; }
+        else if ((c & 0xF0) == 0xE0) { cp = c & 0x0F; extra = 2; }
+        else if ((c & 0xF8) == 0xF0) { cp = c & 0x07; extra = 3; }
+        else { out.push_back(kReplacement); ++i; continue; }
+
+        bool ok = true;
+        for (size_t k = 1; k <= extra; ++k) {
+            if (i + k >= s.size()) { ok = false; break; }
+            const auto cc = static_cast<unsigned char>(s[i + k]);
+            if ((cc & 0xC0) != 0x80) { ok = false; break; }
+            cp = (cp << 6) | (cc & 0x3F);
+        }
+        if (!ok) { out.push_back(kReplacement); ++i; continue; }
+        i += extra + 1;
+
+        // Reject overlongs, UTF-16 surrogates, and out-of-range code points.
+        if (cp > 0x10FFFF || (cp >= 0xD800 && cp <= 0xDFFF) ||
+            (extra == 1 && cp < 0x80) || (extra == 2 && cp < 0x800) || (extra == 3 && cp < 0x10000)) {
+            out.push_back(kReplacement);
+            continue;
+        }
+        if (cp <= 0xFFFF) {
+            out.push_back(static_cast<char16_t>(cp));
+        } else {
+            cp -= 0x10000;
+            out.push_back(static_cast<char16_t>(0xD800 + (cp >> 10)));
+            out.push_back(static_cast<char16_t>(0xDC00 + (cp & 0x3FF)));
+        }
+    }
+    return out;
+}
+
 std::string jstring_to_utf8(JNIEnv *env, jstring value) {
     if (value == nullptr) return {};
-    const char *chars = env->GetStringUTFChars(value, nullptr);
+    const jsize len = env->GetStringLength(value);
+    const jchar *chars = env->GetStringChars(value, nullptr);
     if (chars == nullptr) return {};
-    std::string out(chars);
-    env->ReleaseStringUTFChars(value, chars);
+    std::string out;
+    out.reserve(static_cast<size_t>(len) * 3);
+    for (jsize i = 0; i < len; ++i) {
+        uint32_t cp;
+        const uint32_t c = chars[i];
+        if (c >= 0xD800 && c <= 0xDBFF && i + 1 < len) {
+            const uint32_t c2 = chars[i + 1];
+            if (c2 >= 0xDC00 && c2 <= 0xDFFF) {
+                cp = 0x10000 + (((c - 0xD800) << 10) | (c2 - 0xDC00));
+                ++i;
+            } else {
+                cp = kReplacement;
+            }
+        } else if (c >= 0xDC00 && c <= 0xDFFF) {
+            cp = kReplacement;
+        } else {
+            cp = c;
+        }
+        if (cp < 0x80) {
+            out.push_back(static_cast<char>(cp));
+        } else if (cp < 0x800) {
+            out.push_back(static_cast<char>(0xC0 | (cp >> 6)));
+            out.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+        } else if (cp < 0x10000) {
+            out.push_back(static_cast<char>(0xE0 | (cp >> 12)));
+            out.push_back(static_cast<char>(0x80 | ((cp >> 6) & 0x3F)));
+            out.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+        } else {
+            out.push_back(static_cast<char>(0xF0 | (cp >> 18)));
+            out.push_back(static_cast<char>(0x80 | ((cp >> 12) & 0x3F)));
+            out.push_back(static_cast<char>(0x80 | ((cp >> 6) & 0x3F)));
+            out.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+        }
+    }
+    env->ReleaseStringChars(value, chars);
     return out;
+}
+
+jstring to_jstring(JNIEnv *env, const std::string &utf8) {
+    if (utf8.empty()) return env->NewString(reinterpret_cast<const jchar *>(u""), 0);
+    const std::u16string u16 = utf8_to_utf16(utf8);
+    return env->NewString(reinterpret_cast<const jchar *>(u16.data()), static_cast<jsize>(u16.size()));
 }
 
 }  // namespace
@@ -93,11 +178,11 @@ Java_com_example_llm_LlamaBridge_nativeGenerate(
         jint nThreads, jint nCtx) {
     auto *session = reinterpret_cast<Session *>(handle);
     if (session == nullptr || session->model == nullptr) {
-        return env->NewStringUTF("");
+        return to_jstring(env, "");
     }
 
     const std::string prompt = jstring_to_utf8(env, jPrompt);
-    if (prompt.empty()) return env->NewStringUTF("");
+    if (prompt.empty()) return to_jstring(env, "");
 
     // --- tokenize the whole prompt -------------------------------------------
     const int32_t needed = -llama_tokenize(
@@ -105,7 +190,7 @@ Java_com_example_llm_LlamaBridge_nativeGenerate(
             nullptr, 0, /*add_special=*/true, /*parse_special=*/true);
     if (needed <= 0) {
         LOGE("nativeGenerate: tokenize probe failed");
-        return env->NewStringUTF("");
+        return to_jstring(env, "");
     }
 
     std::vector<llama_token> tokens(static_cast<size_t>(needed));
@@ -114,12 +199,12 @@ Java_com_example_llm_LlamaBridge_nativeGenerate(
             tokens.data(), needed, /*add_special=*/true, /*parse_special=*/true);
     if (n_prompt <= 0) {
         LOGE("nativeGenerate: tokenize failed");
-        return env->NewStringUTF("");
+        return to_jstring(env, "");
     }
 
     if (n_prompt >= nCtx) {
         LOGE("nativeGenerate: prompt (%d tokens) exceeds context (%d)", n_prompt, nCtx);
-        return env->NewStringUTF("");
+        return to_jstring(env, "");
     }
 
     // --- fresh context per request ------------------------------------------
@@ -132,7 +217,7 @@ Java_com_example_llm_LlamaBridge_nativeGenerate(
     llama_context *ctx = llama_init_from_model(session->model, cparams);
     if (ctx == nullptr) {
         LOGE("nativeGenerate: llama_init_from_model failed");
-        return env->NewStringUTF("");
+        return to_jstring(env, "");
     }
 
     llama_sampler_chain_params sparams = llama_sampler_chain_default_params();
@@ -181,7 +266,7 @@ Java_com_example_llm_LlamaBridge_nativeGenerate(
 
     if (!ok) LOGE("nativeGenerate: decode failed mid-generation");
 
-    return env->NewStringUTF(out.c_str());
+    return to_jstring(env, out);
 }
 
 JNIEXPORT void JNICALL
@@ -194,3 +279,4 @@ Java_com_example_llm_LlamaBridge_nativeFreeModel(JNIEnv * /*env*/, jobject /*thi
 }
 
 }  // extern "C"
+

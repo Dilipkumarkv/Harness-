@@ -1,6 +1,7 @@
 package com.example.data.entity
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
 @Entity(tableName = "projects")
@@ -12,7 +13,10 @@ data class ProjectEntity(
     val createdAt: Long = System.currentTimeMillis()
 )
 
-@Entity(tableName = "sessions")
+@Entity(
+    tableName = "sessions",
+    indices = [Index("projectId")]
+)
 data class SessionEntity(
     @PrimaryKey val id: String,
     val projectId: String,
@@ -21,7 +25,10 @@ data class SessionEntity(
     val createdAt: Long = System.currentTimeMillis()
 )
 
-@Entity(tableName = "messages")
+@Entity(
+    tableName = "messages",
+    indices = [Index("sessionId")]
+)
 data class MessageEntity(
     @PrimaryKey val id: String,
     val sessionId: String,
@@ -32,7 +39,10 @@ data class MessageEntity(
     val isStreaming: Boolean = false
 )
 
-@Entity(tableName = "tool_calls")
+@Entity(
+    tableName = "tool_calls",
+    indices = [Index("messageId")]
+)
 data class ToolCallEntity(
     @PrimaryKey val id: String,
     val messageId: String,
@@ -45,7 +55,10 @@ data class ToolCallEntity(
     val createdAt: Long = System.currentTimeMillis()
 )
 
-@Entity(tableName = "workspace_files")
+@Entity(
+    tableName = "workspace_files",
+    indices = [Index(value = ["projectId", "path"])]
+)
 data class WorkspaceFileEntity(
     @PrimaryKey val id: String,
     val projectId: String,

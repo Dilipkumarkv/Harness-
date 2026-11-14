@@ -142,7 +142,7 @@ fun ToolExecutionCard(
                         }
 
                         // Summary of args
-                        val summaryText = extractArgsSummary(toolCall.toolName, toolCall.argumentsJson)
+                        val summaryText = extractArgsSummary(toolCall.argumentsJson)
                         if (summaryText.isNotBlank()) {
                             Text(
                                 text = summaryText,
@@ -214,8 +214,16 @@ fun ToolExecutionCard(
                         )
                     }
 
-                    // Console Output
+                    // Console Output (truncated by default so huge diffs/logs don't blow up the card)
                     if (!toolCall.resultJson.isNullOrBlank()) {
+                        val output = toolCall.resultJson
+                        var outputExpanded by remember { mutableStateOf(false) }
+                        val limit = 2_000
+                        val visible = if (outputExpanded || output.length <= limit) {
+                            output
+                        } else {
+                            output.take(limit) + "\n… (+${output.length - limit} more chars)"
+                        }
                         Text(
                             text = "OUTPUT",
                             color = OceanSteel,
@@ -232,10 +240,23 @@ fun ToolExecutionCard(
                                 .padding(8.dp)
                         ) {
                             Text(
-                                text = toolCall.resultJson,
+                                text = visible,
                                 color = if (toolCall.status == ToolCallStatus.ERROR) OceanError else OceanIceWhite,
                                 fontSize = 11.sp,
                                 fontFamily = FontFamily.Monospace
+                            )
+                        }
+                        if (output.length > limit) {
+                            Text(
+                                text = if (outputExpanded) "Show less" else "Show full output",
+                                color = OceanIceSky,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                fontFamily = FontFamily.Monospace,
+                                modifier = Modifier
+                                    .padding(top = 4.dp)
+                                    .clickable { outputExpanded = !outputExpanded }
+                                    .testTag("toggle_full_output_${toolCall.toolName}")
                             )
                         }
                     }
@@ -245,14 +266,9 @@ fun ToolExecutionCard(
     }
 }
 
+/** Breathing dot shown only while a tool call is RUNNING. */
 @Composable
-fun StatusPill(status: ToolCallStatus) {
-    val (bgColor, textColor, label) = when (status) {
-        ToolCallStatus.RUNNING -> Triple(OceanIceSky.copy(alpha = 0.2f), OceanIceSky, "RUNNING")
-        ToolCallStatus.SUCCESS -> Triple(OceanSuccess.copy(alpha = 0.2f), OceanSuccess, "SUCCESS")
-        ToolCallStatus.ERROR -> Triple(OceanError.copy(alpha = 0.2f), OceanError, "ERROR")
-    }
-
+private fun PulseDot(color: androidx.compose.ui.graphics.Color) {
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
     val alphaAnim by infiniteTransition.animateFloat(
         initialValue = 0.4f,
@@ -263,6 +279,21 @@ fun StatusPill(status: ToolCallStatus) {
         ),
         label = "pulseAlpha"
     )
+    Box(
+        modifier = Modifier
+            .size(6.dp)
+            .alpha(alphaAnim)
+            .background(color, CircleShape)
+    )
+}
+
+@Composable
+fun StatusPill(status: ToolCallStatus) {
+    val (bgColor, textColor, label) = when (status) {
+        ToolCallStatus.RUNNING -> Triple(OceanIceSky.copy(alpha = 0.2f), OceanIceSky, "RUNNING")
+        ToolCallStatus.SUCCESS -> Triple(OceanSuccess.copy(alpha = 0.2f), OceanSuccess, "SUCCESS")
+        ToolCallStatus.ERROR -> Triple(OceanError.copy(alpha = 0.2f), OceanError, "ERROR")
+    }
 
     Row(
         modifier = Modifier
@@ -272,12 +303,7 @@ fun StatusPill(status: ToolCallStatus) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (status == ToolCallStatus.RUNNING) {
-            Box(
-                modifier = Modifier
-                    .size(6.dp)
-                    .alpha(alphaAnim)
-                    .background(textColor, CircleShape)
-            )
+            PulseDot(color = textColor)
             Spacer(modifier = Modifier.width(5.dp))
         }
         Text(
@@ -304,7 +330,7 @@ private fun getToolVisuals(toolName: String): Pair<ImageVector, Color> {
     }
 }
 
-private fun extractArgsSummary(toolName: String, argsJson: String): String {
+private fun extractArgsSummary(argsJson: String): String {
     return try {
         val obj = org.json.JSONObject(argsJson)
         when {

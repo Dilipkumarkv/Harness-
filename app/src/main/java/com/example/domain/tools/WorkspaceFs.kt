@@ -84,10 +84,16 @@ class WorkspaceFs(val root: File) {
         } catch (_: IOException) {
             file
         }
+        // Always report workspace-relative paths with forward slashes: `resolve()` only accepts
+        // '/'-separated paths, and callers split/match on '/'. On Windows the platform separator
+        // would otherwise leak into tool output and break search results and list indentation.
         return if (canonical.path == base.path) {
             ""
         } else {
-            canonical.path.removePrefix(base.path).removePrefix(File.separator)
+            canonical.path
+                .removePrefix(base.path)
+                .replace('\\', '/')
+                .removePrefix("/")
         }
     }
 

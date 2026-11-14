@@ -59,22 +59,6 @@ data class ChatMessage(
     val isStreaming: Boolean = false
 )
 
-data class WorkspaceFile(
-    val id: String,
-    val path: String,
-    val content: String,
-    val language: String = "kotlin",
-    val lastModified: Long = System.currentTimeMillis()
-)
-
-data class GitCommit(
-    val hash: String,
-    val message: String,
-    val author: String,
-    val timestamp: Long,
-    val changedFilesCount: Int
-)
-
 data class DoctorTestResult(
     val name: String,
     val description: String,

@@ -562,6 +562,8 @@ class MainActivity : ComponentActivity() {
 
     fun clearSessionHistory() {
         viewModelScope.launch {
+            // Delete dependent tool_calls first, or they linger as orphans after their messages are gone.
+            toolCallsDao.deleteToolCallsForSession(defaultSessionId)
             messagesDao.clearSession(defaultSessionId)
             loadMessages()
         }

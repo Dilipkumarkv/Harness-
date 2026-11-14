@@ -62,17 +62,17 @@ import com.example.domain.model.HarnessSettings
 import com.example.domain.model.LocalToolProtocol
 import com.example.domain.model.ProviderType
 import com.example.llm.ModelManager
-import com.example.ui.theme.CyberAmber
-import com.example.ui.theme.CyberRose
-import com.example.ui.theme.CyberSky
-import com.example.ui.theme.NeonEmerald
-import com.example.ui.theme.SlateDark600
-import com.example.ui.theme.SlateDark700
-import com.example.ui.theme.SlateDark800
-import com.example.ui.theme.SlateDark900
-import com.example.ui.theme.SlateLight
-import com.example.ui.theme.SlateMuted
-import com.example.ui.theme.SlateWhite
+import com.example.ui.theme.OceanWarning
+import com.example.ui.theme.OceanError
+import com.example.ui.theme.OceanAqua
+import com.example.ui.theme.OceanIceSky
+import com.example.ui.theme.OceanBorder
+import com.example.ui.theme.OceanDark700
+import com.example.ui.theme.OceanDark800
+import com.example.ui.theme.OceanDark900
+import com.example.ui.theme.OceanIceSky
+import com.example.ui.theme.OceanMuted
+import com.example.ui.theme.OceanIceWhite
 import com.example.ui.viewmodel.HarnessViewModel
 
 @Composable
@@ -105,15 +105,15 @@ fun SettingsScreen(
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .background(SlateDark900)
+            .background(OceanDark900)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // AI Model Provider Selection
         item {
             Card(
-                colors = CardDefaults.cardColors(containerColor = SlateDark800),
-                border = androidx.compose.foundation.BorderStroke(1.dp, SlateDark600),
+                colors = CardDefaults.cardColors(containerColor = OceanDark800),
+                border = androidx.compose.foundation.BorderStroke(1.dp, OceanBorder),
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -122,13 +122,13 @@ fun SettingsScreen(
                         Icon(
                             imageVector = Icons.Default.Memory,
                             contentDescription = null,
-                            tint = NeonEmerald,
+                            tint = OceanIceSky,
                             modifier = Modifier.size(20.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = "AI MODEL ENGINE",
-                            color = SlateWhite,
+                            color = OceanIceWhite,
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp,
                             letterSpacing = 1.sp
@@ -174,8 +174,8 @@ fun SettingsScreen(
         if (settings.providerType == ProviderType.LOCAL_TOOL_LLM) {
             item {
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = SlateDark800),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, SlateDark600),
+                    colors = CardDefaults.cardColors(containerColor = OceanDark800),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, OceanBorder),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -184,13 +184,13 @@ fun SettingsScreen(
                             Icon(
                                 imageVector = Icons.Default.Speed,
                                 contentDescription = null,
-                                tint = CyberSky,
+                                tint = OceanAqua,
                                 modifier = Modifier.size(20.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = "KEYWORD ROUTER",
-                                color = SlateWhite,
+                                color = OceanIceWhite,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp,
                                 letterSpacing = 1.sp
@@ -208,7 +208,7 @@ fun SettingsScreen(
                                 "  search / find    \u2192 search_code\n" +
                                 "  list / files     \u2192 list_directory\n" +
                                 "  anything else    \u2192 reads the file you name, then says it cannot author code",
-                            color = SlateLight,
+                            color = OceanIceSky,
                             fontSize = 11.sp,
                             fontFamily = FontFamily.Monospace,
                             lineHeight = 17.sp
@@ -218,7 +218,7 @@ fun SettingsScreen(
 
                         Text(
                             text = "To have the agent write or edit code, switch to the custom endpoint above and supply a model.",
-                            color = SlateMuted,
+                            color = OceanMuted,
                             fontSize = 10.sp
                         )
                     }
@@ -230,8 +230,8 @@ fun SettingsScreen(
         if (settings.providerType == ProviderType.BYOK_CUSTOM) {
             item {
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = SlateDark800),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, SlateDark600),
+                    colors = CardDefaults.cardColors(containerColor = OceanDark800),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, OceanBorder),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -240,13 +240,13 @@ fun SettingsScreen(
                             Icon(
                                 imageVector = Icons.Default.Key,
                                 contentDescription = null,
-                                tint = CyberAmber,
+                                tint = OceanWarning,
                                 modifier = Modifier.size(20.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = "CUSTOM API CREDENTIALS",
-                                color = SlateWhite,
+                                color = OceanIceWhite,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp,
                                 letterSpacing = 1.sp
@@ -265,10 +265,10 @@ fun SettingsScreen(
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = NeonEmerald,
-                                unfocusedBorderColor = SlateDark600,
-                                focusedTextColor = SlateWhite,
-                                unfocusedTextColor = SlateWhite
+                                focusedBorderColor = OceanIceSky,
+                                unfocusedBorderColor = OceanBorder,
+                                focusedTextColor = OceanIceWhite,
+                                unfocusedTextColor = OceanIceWhite
                             )
                         )
 
@@ -284,10 +284,10 @@ fun SettingsScreen(
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = NeonEmerald,
-                                unfocusedBorderColor = SlateDark600,
-                                focusedTextColor = SlateWhite,
-                                unfocusedTextColor = SlateWhite
+                                focusedBorderColor = OceanIceSky,
+                                unfocusedBorderColor = OceanBorder,
+                                focusedTextColor = OceanIceWhite,
+                                unfocusedTextColor = OceanIceWhite
                             )
                         )
 
@@ -303,10 +303,10 @@ fun SettingsScreen(
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = NeonEmerald,
-                                unfocusedBorderColor = SlateDark600,
-                                focusedTextColor = SlateWhite,
-                                unfocusedTextColor = SlateWhite
+                                focusedBorderColor = OceanIceSky,
+                                unfocusedBorderColor = OceanBorder,
+                                focusedTextColor = OceanIceWhite,
+                                unfocusedTextColor = OceanIceWhite
                             )
                         )
 
@@ -314,7 +314,7 @@ fun SettingsScreen(
 
                         Text(
                             text = "TOOL-CALL FORMAT",
-                            color = SlateWhite,
+                            color = OceanIceWhite,
                             fontWeight = FontWeight.Bold,
                             fontSize = 11.sp,
                             letterSpacing = 1.sp
@@ -324,7 +324,7 @@ fun SettingsScreen(
 
                         Text(
                             text = "How the model is asked to emit tool calls. Pick whichever your model follows best.",
-                            color = SlateMuted,
+                            color = OceanMuted,
                             fontSize = 10.sp
                         )
 
@@ -356,8 +356,8 @@ fun SettingsScreen(
         if (settings.providerType == ProviderType.ON_DEVICE_LLAMA) {
             item {
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = SlateDark800),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, SlateDark600),
+                    colors = CardDefaults.cardColors(containerColor = OceanDark800),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, OceanBorder),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -366,13 +366,13 @@ fun SettingsScreen(
                             Icon(
                                 imageVector = Icons.Default.PhoneAndroid,
                                 contentDescription = null,
-                                tint = NeonEmerald,
+                                tint = OceanIceSky,
                                 modifier = Modifier.size(20.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = "ON-DEVICE MODEL (GGUF)",
-                                color = SlateWhite,
+                                color = OceanIceWhite,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp,
                                 letterSpacing = 1.sp
@@ -385,7 +385,7 @@ fun SettingsScreen(
                             text = "Import a .gguf model (e.g. Qwen2.5-Coder-1.5B/3B-Instruct, Q4_K_M). " +
                                 "Inference runs on this device's CPU via llama.cpp — small quantized models work best. " +
                                 "Uses ${settings.modelThreads} threads and a ${settings.modelContextSize}-token context.",
-                            color = SlateLight,
+                            color = OceanIceSky,
                             fontSize = 11.sp,
                             lineHeight = 16.sp
                         )
@@ -395,7 +395,7 @@ fun SettingsScreen(
                         Button(
                             onClick = { pickModel.launch(arrayOf("*/*")) },
                             enabled = !isImporting,
-                            colors = ButtonDefaults.buttonColors(containerColor = NeonEmerald),
+                            colors = ButtonDefaults.buttonColors(containerColor = OceanIceSky),
                             shape = RoundedCornerShape(8.dp),
                             modifier = Modifier.testTag("import_model_button")
                         ) {
@@ -416,7 +416,7 @@ fun SettingsScreen(
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
                                 text = importError ?: "",
-                                color = CyberRose,
+                                color = OceanError,
                                 fontSize = 11.sp,
                                 modifier = Modifier.testTag("model_import_error")
                             )
@@ -427,7 +427,7 @@ fun SettingsScreen(
                         if (models.isEmpty()) {
                             Text(
                                 text = "No models imported yet.",
-                                color = SlateMuted,
+                                color = OceanMuted,
                                 fontSize = 11.sp
                             )
                         } else {
@@ -445,7 +445,7 @@ fun SettingsScreen(
 
                         Text(
                             text = "TOOL-CALL FORMAT",
-                            color = SlateWhite,
+                            color = OceanIceWhite,
                             fontWeight = FontWeight.Bold,
                             fontSize = 11.sp,
                             letterSpacing = 1.sp
@@ -478,8 +478,8 @@ fun SettingsScreen(
         // Git binary path
         item {
             Card(
-                colors = CardDefaults.cardColors(containerColor = SlateDark800),
-                border = androidx.compose.foundation.BorderStroke(1.dp, SlateDark600),
+                colors = CardDefaults.cardColors(containerColor = OceanDark800),
+                border = androidx.compose.foundation.BorderStroke(1.dp, OceanBorder),
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -488,13 +488,13 @@ fun SettingsScreen(
                         Icon(
                             imageVector = Icons.Default.Settings,
                             contentDescription = null,
-                            tint = CyberSky,
+                            tint = OceanAqua,
                             modifier = Modifier.size(20.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = "GIT BINARY PATH",
-                            color = SlateWhite,
+                            color = OceanIceWhite,
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp,
                             letterSpacing = 1.sp
@@ -513,17 +513,17 @@ fun SettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = NeonEmerald,
-                            unfocusedBorderColor = SlateDark600,
-                            focusedTextColor = SlateWhite,
-                            unfocusedTextColor = SlateWhite
+                            focusedBorderColor = OceanIceSky,
+                            unfocusedBorderColor = OceanBorder,
+                            focusedTextColor = OceanIceWhite,
+                            unfocusedTextColor = OceanIceWhite
                         )
                     )
 
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
                         text = "On Android, 'git' is not bundled. Install Termux and `pkg install git`, then set the path (e.g. /data/data/com.termux/files/usr/bin/git).",
-                        color = SlateMuted,
+                        color = OceanMuted,
                         fontSize = 10.sp
                     )
                 }
@@ -533,8 +533,8 @@ fun SettingsScreen(
         // Diagnostics Doctor
         item {
             Card(
-                colors = CardDefaults.cardColors(containerColor = SlateDark800),
-                border = androidx.compose.foundation.BorderStroke(1.dp, SlateDark600),
+                colors = CardDefaults.cardColors(containerColor = OceanDark800),
+                border = androidx.compose.foundation.BorderStroke(1.dp, OceanBorder),
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -543,13 +543,13 @@ fun SettingsScreen(
                         Icon(
                             imageVector = Icons.Default.MedicalServices,
                             contentDescription = null,
-                            tint = CyberAmber,
+                            tint = OceanWarning,
                             modifier = Modifier.size(20.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = "SYSTEM DIAGNOSTICS & DOCTOR",
-                            color = SlateWhite,
+                            color = OceanIceWhite,
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp,
                             letterSpacing = 1.sp
@@ -559,14 +559,14 @@ fun SettingsScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = "Run internal self-tests verifying real filesystem, toolchain sandbox, ReAct/XML parser, and patch engine.",
-                        color = SlateLight,
+                        color = OceanIceSky,
                         fontSize = 12.sp
                     )
 
                     Spacer(modifier = Modifier.height(12.dp))
                     Button(
                         onClick = onOpenDoctor,
-                        colors = ButtonDefaults.buttonColors(containerColor = CyberAmber),
+                        colors = ButtonDefaults.buttonColors(containerColor = OceanWarning),
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.testTag("run_doctor_button")
                     ) {
@@ -580,7 +580,7 @@ fun SettingsScreen(
         item {
             OutlinedButton(
                 onClick = { viewModel.clearSessionHistory() },
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = CyberRose),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = OceanError),
                 shape = RoundedCornerShape(8.dp),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -611,19 +611,19 @@ fun ProviderOptionItem(
         RadioButton(
             selected = selected,
             onClick = onClick,
-            colors = RadioButtonDefaults.colors(selectedColor = NeonEmerald, unselectedColor = SlateMuted)
+            colors = RadioButtonDefaults.colors(selectedColor = OceanIceSky, unselectedColor = OceanMuted)
         )
         Spacer(modifier = Modifier.width(6.dp))
         Column {
             Text(
                 text = title,
-                color = if (selected) NeonEmerald else SlateWhite,
+                color = if (selected) OceanIceSky else OceanIceWhite,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 13.sp
             )
             Text(
                 text = description,
-                color = SlateMuted,
+                color = OceanMuted,
                 fontSize = 11.sp,
                 lineHeight = 16.sp
             )
@@ -639,14 +639,14 @@ fun ProtocolChip(
 ) {
     Box(
         modifier = Modifier
-            .background(if (selected) NeonEmerald.copy(alpha = 0.2f) else SlateDark700, RoundedCornerShape(8.dp))
-            .border(1.dp, if (selected) NeonEmerald else SlateDark600, RoundedCornerShape(8.dp))
+            .background(if (selected) OceanIceSky.copy(alpha = 0.2f) else OceanDark700, RoundedCornerShape(8.dp))
+            .border(1.dp, if (selected) OceanIceSky else OceanBorder, RoundedCornerShape(8.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 6.dp)
     ) {
         Text(
             text = label,
-            color = if (selected) NeonEmerald else SlateLight,
+            color = if (selected) OceanIceSky else OceanIceSky,
             fontSize = 11.sp,
             fontWeight = FontWeight.SemiBold,
             fontFamily = FontFamily.Monospace
@@ -671,20 +671,20 @@ fun ModelRow(
         RadioButton(
             selected = selected,
             onClick = onSelect,
-            colors = RadioButtonDefaults.colors(selectedColor = NeonEmerald, unselectedColor = SlateMuted)
+            colors = RadioButtonDefaults.colors(selectedColor = OceanIceSky, unselectedColor = OceanMuted)
         )
         Spacer(modifier = Modifier.width(6.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = model.name,
-                color = if (selected) NeonEmerald else SlateWhite,
+                color = if (selected) OceanIceSky else OceanIceWhite,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
                 fontFamily = FontFamily.Monospace
             )
             Text(
                 text = "${model.sizeBytes / 1_048_576} MB",
-                color = SlateMuted,
+                color = OceanMuted,
                 fontSize = 10.sp
             )
         }
@@ -692,7 +692,7 @@ fun ModelRow(
             Icon(
                 imageVector = Icons.Default.Delete,
                 contentDescription = "Delete ${model.name}",
-                tint = CyberRose,
+                tint = OceanError,
                 modifier = Modifier.size(18.dp)
             )
         }

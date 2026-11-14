@@ -74,6 +74,23 @@ class ExampleRobolectricTest {
     }
 
     @Test
+    fun `markdown renderer handles code fences bold and bullets`() {
+        val rendered = com.example.ui.components.SimpleMarkdown.render(
+            "Here is **bold** text and `inline code`\n" +
+                "- first item\n" +
+                "```kotlin\n" +
+                "fun main() {}\n" +
+                "```\n" +
+                "done"
+        )
+        assertTrue(rendered.text.contains("bold"))
+        assertTrue(rendered.text.contains("inline code"))
+        assertTrue(rendered.text.contains("• first item"))
+        assertTrue(rendered.text.contains("fun main() {}"))
+        assertTrue(rendered.text.contains("done"))
+    }
+
+    @Test
     fun `test ToolCallParser JSON block`() {
         val text = """
             Some context

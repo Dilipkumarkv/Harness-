@@ -26,8 +26,8 @@ import com.example.ui.theme.DiffAddedBg
 import com.example.ui.theme.DiffAddedText
 import com.example.ui.theme.DiffRemovedBg
 import com.example.ui.theme.DiffRemovedText
-import com.example.ui.theme.SlateDark900
-import com.example.ui.theme.SlateMuted
+import com.example.ui.theme.OceanDark900
+import com.example.ui.theme.OceanMuted
 
 @Composable
 fun DiffViewer(
@@ -43,7 +43,7 @@ fun DiffViewer(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(SlateDark900, RoundedCornerShape(8.dp))
+            .background(OceanDark900, RoundedCornerShape(8.dp))
             .padding(vertical = 4.dp)
             .horizontalScroll(horizontalScroll)
     ) {
@@ -64,14 +64,14 @@ fun DiffViewer(
                 // Line numbers
                 Text(
                     text = line.oldLineNum?.toString() ?: "",
-                    color = SlateMuted,
+                    color = OceanMuted,
                     fontSize = 11.sp,
                     fontFamily = FontFamily.Monospace,
                     modifier = Modifier.width(28.dp)
                 )
                 Text(
                     text = line.newLineNum?.toString() ?: "",
-                    color = SlateMuted,
+                    color = OceanMuted,
                     fontSize = 11.sp,
                     fontFamily = FontFamily.Monospace,
                     modifier = Modifier.width(28.dp)

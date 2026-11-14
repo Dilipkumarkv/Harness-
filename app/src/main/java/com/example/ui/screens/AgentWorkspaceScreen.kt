@@ -26,7 +26,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Stop
@@ -44,6 +46,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,14 +54,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
 import com.example.domain.agent.ApprovalGate
 import com.example.domain.model.ChatMessage
+import com.example.ui.components.MarkdownText
 import com.example.ui.components.ToolExecutionCard
 import com.example.ui.theme.OceanAqua
 import com.example.ui.theme.OceanBorder
@@ -86,11 +93,24 @@ fun AgentWorkspaceScreen(
 
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
+    val jumpScope = androidx.compose.runtime.rememberCoroutineScope()
 
-    // Scroll to bottom on new message
-    LaunchedEffect(messages.size, isRunning) {
-        if (messages.isNotEmpty()) {
-            listState.animateScrollToItem(messages.size - 1)
+    // Only auto-scroll when the user is already at the bottom; someone reading history must not
+    // be yanked down on every token.
+    val isNearBottom by remember {
+        derivedStateOf {
+            val layout = listState.layoutInfo
+            val total = layout.totalItemsCount
+            val lastVisible = layout.visibleItemsInfo.lastOrNull()?.index ?: 0
+            total == 0 || lastVisible >= total - 1
+        }
+    }
+
+    LaunchedEffect(messages, isRunning) {
+        val layout = listState.layoutInfo
+        val total = layout.totalItemsCount
+        if (total > 0 && isNearBottom) {
+            listState.animateScrollToItem(total - 1)
         }
     }
 
@@ -139,16 +159,18 @@ fun AgentWorkspaceScreen(
             Spacer(modifier = Modifier.width(8.dp))
         }
 
-        // Messages Conversation Stream
-        LazyColumn(
-            state = listState,
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp),
-            contentPadding = PaddingValues(vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
+        // Messages Conversation Stream (wraps the list so we can overlay the jump-to-bottom chip)
+        Box(modifier = Modifier
+            .weight(1f)
+            .fillMaxWidth()) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 12.dp),
+                contentPadding = PaddingValues(vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
             items(messages, key = { it.id }) { message ->
                 if (message.role == "user") {
                     UserMessageBubble(message)
@@ -161,6 +183,44 @@ fun AgentWorkspaceScreen(
             if (isRunning) {
                 item {
                     ActiveAgentPulse(thought = currentThought)
+                }
+            }
+            }
+
+            // Jump-to-bottom chip, shown only when the user scrolled up in history
+            if (!isNearBottom && messages.isNotEmpty()) {
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = OceanDark700.copy(alpha = 0.95f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, OceanSteel.copy(alpha = 0.8f)),
+                    modifier = Modifier
+                        .align(androidx.compose.ui.Alignment.BottomCenter)
+                        .padding(bottom = 12.dp)
+                        .clickable {
+                            jumpScope.launch {
+                                val total = listState.layoutInfo.totalItemsCount
+                                if (total > 0) listState.animateScrollToItem(total - 1)
+                            }
+                        }
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowDown,
+                            contentDescription = "Jump to latest message",
+                            tint = OceanIceSky,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Jump to latest",
+                            color = OceanIceSky,
+                            fontSize = 12.sp,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
                 }
             }
         }
@@ -258,10 +318,24 @@ fun AgentWorkspaceScreen(
 
 @Composable
 fun UserMessageBubble(message: ChatMessage) {
+    val clipboard = LocalClipboardManager.current
+
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.End
+        horizontalArrangement = Arrangement.End,
+        verticalAlignment = Alignment.Bottom
     ) {
+        IconButton(
+            onClick = { clipboard.setText(AnnotatedString(message.content)) },
+            modifier = Modifier.size(30.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.ContentCopy,
+                contentDescription = "Copy message",
+                tint = OceanMuted,
+                modifier = Modifier.size(16.dp)
+            )
+        }
         Box(
             modifier = Modifier
                 .fillMaxWidth(0.85f)
@@ -285,6 +359,7 @@ fun UserMessageBubble(message: ChatMessage) {
 @Composable
 fun AssistantMessageItem(message: ChatMessage) {
     var thoughtExpanded by remember { mutableStateOf(false) }
+    val clipboard = LocalClipboardManager.current
 
     Column(modifier = Modifier.fillMaxWidth()) {
         // Agent Header
@@ -376,7 +451,7 @@ fun AssistantMessageItem(message: ChatMessage) {
             ToolExecutionCard(toolCall = toolCall)
         }
 
-        // Assistant Text Explanation
+        // Assistant Text Explanation (rendered as markdown)
         if (message.content.isNotBlank()) {
             Box(
                 modifier = Modifier
@@ -386,12 +461,28 @@ fun AssistantMessageItem(message: ChatMessage) {
                     .border(1.dp, OceanBorder, RoundedCornerShape(12.dp))
                     .padding(12.dp)
             ) {
-                Text(
-                    text = message.content,
-                    color = OceanIceWhite, // #F6FAFD
-                    fontSize = 13.sp,
-                    lineHeight = 20.sp
-                )
+                Column {
+                    MarkdownText(
+                        text = message.content,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        IconButton(
+                            onClick = { clipboard.setText(AnnotatedString(message.content)) },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ContentCopy,
+                                contentDescription = "Copy message",
+                                tint = OceanMuted,
+                                modifier = Modifier.size(15.dp)
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -403,6 +494,8 @@ fun ApprovalDialog(
     onApprove: () -> Unit,
     onDeny: () -> Unit
 ) {
+    var rawExpanded by remember { mutableStateOf(false) }
+
     AlertDialog(
         onDismissRequest = onDeny,
         title = {
@@ -414,25 +507,55 @@ fun ApprovalDialog(
             )
         },
         text = {
-            Column(modifier = Modifier.padding(vertical = 8.dp)) {
+            Column(modifier = Modifier.padding(vertical = 4.dp)) {
                 Text(
-                    text = "${pending.toolName} ${pending.reason}",
+                    text = com.example.domain.agent.ToolCallSummary.describe(
+                        pending.toolName, pending.argumentsJson
+                    ),
                     color = OceanIceWhite,
-                    fontSize = 13.sp
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    lineHeight = 20.sp,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+                Text(
+                    text = "The AndroidHarness agent is about to run ${pending.toolName}; ${pending.reason}.",
+                    color = OceanMuted,
+                    fontSize = 11.sp
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(OceanDark900, RoundedCornerShape(8.dp))
-                        .padding(10.dp)
+                Row(
+                    modifier = Modifier.clickable { rawExpanded = !rawExpanded },
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    Icon(
+                        imageVector = if (rawExpanded) Icons.Default.ExpandMore else Icons.Default.ChevronRight,
+                        contentDescription = null,
+                        tint = OceanIceSky,
+                        modifier = Modifier.size(16.dp)
+                    )
                     Text(
-                        text = pending.argumentsJson.take(800),
+                        text = "Raw arguments",
                         color = OceanIceSky,
                         fontSize = 11.sp,
                         fontFamily = FontFamily.Monospace
                     )
+                }
+                if (rawExpanded) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp)
+                            .background(OceanDark900, RoundedCornerShape(8.dp))
+                            .padding(10.dp)
+                    ) {
+                        Text(
+                            text = pending.argumentsJson.take(1200),
+                            color = OceanIceSky,
+                            fontSize = 11.sp,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
                 }
             }
         },

@@ -30,18 +30,3 @@ val DiffAddedBg = Color(0x3338E1B0)
 val DiffAddedText = Color(0xFF5EEAD4)
 val DiffRemovedBg = Color(0x33FB7185)
 val DiffRemovedText = Color(0xFFFDA4AF)
-
-// Backwards-compatible aliases for existing screens
-val SlateDark900 = OceanDark900
-val SlateDark800 = OceanDark800
-val SlateDark700 = OceanDark700
-val SlateDark600 = OceanBorder
-val SlateMuted   = OceanMuted
-val SlateLight   = OceanIceSky
-val SlateWhite   = OceanIceWhite
-
-val NeonEmerald  = OceanIceSky
-val CyberSky     = OceanAqua
-val CyberAmethyst= OceanSteel
-val CyberAmber   = OceanWarning
-val CyberRose    = OceanError
